@@ -41,9 +41,25 @@ public class HomeActivity extends Activity {
         }
         Ui.init(this);
         home = new HomeView(this);
+        try {
+            WebRemoteServer server = WebRemoteServer.start(this);
+            server.setKeyDispatcher(keyCode -> {
+                long now = SystemClock.uptimeMillis();
+                KeyEvent down = new KeyEvent(now, now, KeyEvent.ACTION_DOWN, keyCode, 0);
+                KeyEvent up = new KeyEvent(now, now, KeyEvent.ACTION_UP, keyCode, 0);
+                dispatchKeyEvent(down);
+                dispatchKeyEvent(up);
+            });
+        } catch (Exception ignored) {}
         setContentView(home);
+        // Show QR Code modal popup for 8 seconds on startup, auto-closing afterwards
+        home.postDelayed(() -> home.showQrModal(8000), 1200);
         getWindow().setBackgroundDrawable(null);
         if (getIntent().getBooleanExtra(EXTRA_ALL_APPS, false)) home.showAllApps();
+    }
+
+    public HomeView getHomeView() {
+        return home;
     }
 
     @Override protected void onResume() {

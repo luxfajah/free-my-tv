@@ -47,8 +47,28 @@ import java.util.concurrent.Executors;
  * releases needs), else config.properties' "tmdb_key", built into the app. It never goes to the log.
  */
 final class Recs {
+    private static int dayOfYear(long time) {
+        Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(time);
+        return c.get(Calendar.DAY_OF_YEAR);
+    }
+
+    private static List<Pick> dynamicSlot(List<Pick> pool, long slot, int count) {
+        List<Pick> out = new ArrayList<>();
+        if (pool.isEmpty()) return out;
+        int n = pool.size();
+        int step = (n >= 12) ? 3 : 1;
+        int start = (int) ((slot * count * step) % n);
+        for (int i = 0; i < n && out.size() < count; i++) {
+            Pick p = pool.get((start + i * step) % n);
+            if (!out.contains(p)) out.add(p);
+        }
+        return out;
+    }
+
     static final class Pick {
         int id;
+        int world;
         String kind;            // "movie" or "tv"
         String title, backdrop, poster, meta = "", app, pkg;   // poster: the portrait image of the narrow cards
         String link;            // opens the title in its app (looked up with Watchmode), or null: the app's home
@@ -64,11 +84,11 @@ final class Recs {
     // TMDB's own mirror of api.themoviedb.org, on the images' domain: some ISPs block the other name (Jio, #327)
     private static final String API = "https://api.tmdb.org/3";
     /** The most cards per tab and hour (Prefs.cards() picks how many, 3 by default); the home screen shows 3 at a time and scrolls. */
-    static final int MAX_CARDS = 6;
+    static final int MAX_CARDS = 16;
 
     /** The backdrops: on a 720p UI, TMDB's 1280-wide copy shows the same and is lighter to download and decode. */
-    private static final String IMAGES = "https://image.tmdb.org/t/p/" + (Backdrop.W <= 1280 ? "w1280" : "original");
-    private static final String POSTERS = "https://image.tmdb.org/t/p/w500";
+    private static final String IMAGES = "https://image.tmdb.org/t/p/w1280";
+    private static final String POSTERS = "https://image.tmdb.org/t/p/w342";
     /** TMDB's Animation genre (movies and shows: cartoons and anime), left out with hide_animation=true. */
     private static final int ANIMATION = 16;
     private static final long LIST_EVERY = 6 * 3600_000L;
@@ -186,7 +206,7 @@ final class Recs {
 
     private final Context context;
     private final SharedPreferences cache;
-    private final ExecutorService io = Executors.newSingleThreadExecutor();
+    private final ExecutorService io = Executors.newFixedThreadPool(4);
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<Listener> listeners = new ArrayList<>();
     private final Map<String, Poster> posters = new LinkedHashMap<>();   // narrow-card portraits, same keys as images
@@ -325,31 +345,125 @@ final class Recs {
     }
 
     /** This hour's Prefs.cards(), movies only ("movie") or shows only ("tv"); null = both (the home screen tabs). */
+    public static void recordInteraction(Pick p, String type) {
+        if (p == null) return;
+        String fKey = franchise(p.title);
+        if ("click".equals(type)) {
+            Prefs.adjustWorldAffinity(p.world, 0.35f);
+            Prefs.adjustFranchiseAffinity(fKey, 0.8f);
+            AppLog.w("Learn [click]: " + p.title + " (world=" + p.world + ") affinity +0.35");
+        } else if ("like".equals(type)) {
+            Prefs.addLikedTitle(p.title);
+            Prefs.addLikedTitle(fKey);
+            Prefs.adjustWorldAffinity(p.world, 1.5f);
+            Prefs.adjustFranchiseAffinity(fKey, 3.5f);
+            AppLog.w("Learn [like]: " + p.title + " (world=" + p.world + ") affinity +1.5, franchise +3.5");
+        } else if ("dislike".equals(type)) {
+            Prefs.addDislikedTitle(p.title);
+            Prefs.addDislikedTitle(fKey);
+            Prefs.adjustWorldAffinity(p.world, -1.2f);
+            Prefs.adjustFranchiseAffinity(fKey, -15.0f);
+            AppLog.w("Learn [dislike]: " + p.title + " (world=" + p.world + ") score 0, affinity -1.2");
+        }
+    }
+
+    static float calculateAffinityScore(Pick p) {
+        if (p == null) return 0f;
+        String fKey = franchise(p.title);
+        if (Prefs.isDisliked(p.title) || Prefs.isDisliked(fKey)) return -999.0f;
+        float worldWeight = Prefs.worldAffinity(p.world);
+        float franchiseWeight = Prefs.franchiseAffinity(fKey);
+        float score = (7.0f * worldWeight) + franchiseWeight;
+        if (Prefs.isLiked(p.title) || Prefs.isLiked(fKey)) score += 25.0f;
+        // Exploration bandit jitter (20% randomness to explore new genres daily and prevent bubble):
+        score += (float) (Math.random() * 2.2f);
+        return score;
+    }
+
+    private static void learnFromStremioHistory(List<JSONObject> library) {
+        if (library == null || library.isEmpty()) return;
+        int learnedCount = 0;
+        for (JSONObject it : library) {
+            String name = it.optString("name", "");
+            if (name.isEmpty() || Prefs.isDisliked(name)) continue;
+            JSONObject st = it.optJSONObject("state");
+            if (st == null) continue;
+            String fKey = franchise(name);
+            int tw = st.optInt("timesWatched", 0);
+            long off = st.optLong("timeOffset", 0), dur = st.optLong("duration", 0);
+            float pct = dur > 0 ? (float) off / dur : 0f;
+
+            if (tw > 0) {
+                Prefs.adjustFranchiseAffinity(fKey, tw * 0.4f);
+                learnedCount++;
+            }
+            if (pct >= 0.75f) {
+                Prefs.adjustFranchiseAffinity(fKey, 0.6f);
+                learnedCount++;
+            } else if (pct > 0 && pct < 0.15f && tw == 0) {
+                Prefs.adjustFranchiseAffinity(fKey, -0.4f);
+            }
+        }
+        AppLog.w("learnFromStremioHistory processed " + learnedCount + " positive learning signals");
+    }
+
+    public void dislikePick(Pick p) {
+        if (p == null) return;
+        recordInteraction(p, "dislike");
+        explorePicks.remove(p);
+        moviePicks.remove(p);
+        seriesPicks.remove(p);
+        animePicks.remove(p);
+    }
+
+    List<Pick> continueWatching() {
+        if (stremioPicks.isEmpty()) refreshExtras();
+        return stremioPicks;
+    }
+
     List<Pick> now(String kind) {
-        if ("anime".equals(kind)) { if (animePicks.isEmpty()) refreshExtras(); return animePicks; }
-        if ("continue".equals(kind)) { if (stremioPicks.isEmpty()) refreshExtras(); return stremioPicks; }
+        return nowForSlot(kind, System.currentTimeMillis() / (5 * 60_000L));
+    }
+
+    List<Pick> nowForSlot(String kind, long slot) {
+        int cards = 9; // Até 9 cards em todas as abas
+        if (kind == null) {
+            if (explorePicks.isEmpty()) refreshExtras();
+            if (!explorePicks.isEmpty()) return mixWorlds(dynamicSlot(explorePicks, slot, cards));
+        }
+        if ("tv".equals(kind)) {
+            if (seriesPicks.isEmpty()) refreshExtras();
+            if (!seriesPicks.isEmpty()) return mixWorlds(dynamicSlot(seriesPicks, slot, cards));
+        }
+        if ("movie".equals(kind)) {
+            if (moviePicks.isEmpty()) refreshExtras();
+            if (!moviePicks.isEmpty()) return mixWorlds(dynamicSlot(moviePicks, slot, cards));
+        }
+        if ("anime".equals(kind)) {
+            if (animePicks.isEmpty()) refreshExtras();
+            if (!animePicks.isEmpty()) return mixWorlds(dynamicSlot(animePicks, slot, cards));
+        }
+        if ("continue".equals(kind)) {
+            if (stremioPicks.isEmpty()) refreshExtras();
+            return stremioPicks;
+        }
         List<Pick> out = new ArrayList<>();
-        if (!hasKey(context)) return out;    // no TMDB key: no recommendations
+        if (!hasKey(context)) return out;
         List<Pick> progress = new ArrayList<>(), liked = new ArrayList<>(), list = new ArrayList<>();
-        Map<String, Boolean> have = new HashMap<>();   // one look per app, not per title (this runs every 15 s)
+        Map<String, Boolean> have = new HashMap<>();
         for (Pick p : picks) {
             if ((kind == null || kind.equals(p.kind))
                     && (!p.detailed || (p.pkg != null && have.computeIfAbsent(p.pkg, this::installed)
-                    && (p.servicePkg == null || have.computeIfAbsent(p.servicePkg, this::installed))))) {   // app missing or switched off: skip
+                    && (p.servicePkg == null || have.computeIfAbsent(p.servicePkg, this::installed))))) {
                 (p.mine == PROGRESS ? progress : p.mine == LIKED ? liked : list).add(p);
             }
         }
-        long hour = System.currentTimeMillis() / 3600_000L;
-        // Trakt first: what they're in the middle of (as Trakt orders it), up to 2 in 5 cards, then their watchlist and
-        // Trakt's recommendations, up to 3 in 5 with those; then TMDB's. A new set each hour; Trakt's fill the rest when
-        // TMDB's run short. Never two from the same franchise ("Law & Order" and "Law & Order: Special…").
-        int cards = Prefs.cards();
         java.util.Set<String> seen = new java.util.HashSet<>();
         take(out, seen, progress, 0, Math.max(1, cards * 2 / 5));
-        take(out, seen, liked, hour * cards, Math.max(2, cards * 3 / 5));
-        take(out, seen, list, hour * cards, cards);
+        take(out, seen, liked, slot * cards, Math.max(2, cards * 3 / 5));
+        take(out, seen, list, slot * cards, cards);
         take(out, seen, progress, 0, cards);
-        take(out, seen, liked, hour * cards, cards);
+        take(out, seen, liked, slot * cards, cards);
         return out;
     }
 
@@ -368,7 +482,7 @@ final class Recs {
     }
 
     /** "Law & Order: Special Victims Unit" → "law & order" (what comes before ":" or " - "). */
-    private static String franchise(String title) {
+    static String franchise(String title) {
         String t = title == null ? "" : title.toLowerCase(Locale.ROOT);
         int cut = t.indexOf(':');
         if (cut < 0) cut = t.indexOf(" - ");
@@ -427,7 +541,15 @@ final class Recs {
         long sinceFail = now - failedAt;    // negative = the clock went back: don't wait
         if (!newKey && !newTrakt && failedAt != 0 && sinceFail >= 0 && sinceFail < 10 * 60_000L) return;
         int p = period(now);
-        boolean stale = newKey || p != period || now - listAt > LIST_EVERY || now < listAt || picks.isEmpty()
+        boolean newDay = dayOfYear(now) != dayOfYear(listAt) || now - listAt > 24 * 3600_000L;
+        if (newDay) {
+            explorePicks.clear();
+            seriesPicks.clear();
+            animePicks.clear();
+            moviePicks.clear();
+            extrasAt = 0;
+        }
+        boolean stale = newKey || newDay || p != period || now < listAt || picks.isEmpty()
                 || !listLanguage.equals(Ui.language);
         boolean missing = false;
         for (Pick pick : wanted()) missing |= !pick.detailed || !hasImage(pick) || needsLink(pick);
@@ -568,8 +690,11 @@ final class Recs {
     List<Pick> wanted() {
         List<Pick> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
-        for (String kind : new String[] {null, "movie", "tv"}) {
-            for (Pick p : now(kind)) if (seen.add(key(p))) out.add(p);
+        long slot = System.currentTimeMillis() / (5 * 60_000L);
+        for (long s : new long[] {slot, slot + 1}) {
+            for (String kind : new String[] {null, "movie", "tv", "anime"}) {
+                for (Pick p : nowForSlot(kind, s)) if (seen.add(key(p))) out.add(p);
+            }
         }
         return out;
     }
@@ -1155,11 +1280,45 @@ final class Recs {
 
     
         private static final String STREMIO_AUTH = "6Ka6AOE766tW2Ck1ZyoRVd4loqXtTSFA1VcoBsAwbYU=";
-    private volatile List<Pick> animePicks = new ArrayList<>(), stremioPicks = new ArrayList<>();
+    private volatile List<Pick> animePicks = new ArrayList<>(), stremioPicks = new ArrayList<>(), explorePicks = new ArrayList<>(), seriesPicks = new ArrayList<>(), moviePicks = new ArrayList<>();
+    private volatile List<JSONObject> stremioLibrary = new ArrayList<>();
     private volatile long extrasAt = 0;
     private volatile boolean extrasFetching = false;
 
     /** Animes (TMDB) and Stremio's Continue Watching, refreshed in the background. */
+    private static void importExternalTaste() {
+        try {
+            java.io.File f = new java.io.File("/sdcard/freemytv_taste.json");
+            if (!f.exists()) f = new java.io.File("/sdcard/Download/freemytv_taste.json");
+            if (!f.exists()) return;
+            StringBuilder sb = new StringBuilder();
+            try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(f))) {
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+            }
+            JSONObject root = new JSONObject(sb.toString());
+            JSONArray liked = root.optJSONArray("liked");
+            if (liked != null) {
+                for (int i = 0; i < liked.length(); i++) {
+                    String t = liked.getString(i);
+                    Prefs.addLikedTitle(t);
+                    Prefs.addLikedTitle(franchise(t));
+                }
+            }
+            JSONArray disliked = root.optJSONArray("disliked");
+            if (disliked != null) {
+                for (int i = 0; i < disliked.length(); i++) {
+                    String t = disliked.getString(i);
+                    Prefs.addDislikedTitle(t);
+                    Prefs.addDislikedTitle(franchise(t));
+                }
+            }
+            AppLog.w("Imported external taste from /sdcard/freemytv_taste.json successfully!");
+        } catch (Exception e) {
+            AppLog.w("importExternalTaste error: " + e.getMessage());
+        }
+    }
+
     void refreshExtras() {
         long now = System.currentTimeMillis();
         if (extrasFetching) return;
@@ -1168,35 +1327,402 @@ final class Recs {
         extrasFetching = true;
         extrasAt = now;
         io.execute(() -> {
+            Prefs.dailyEvolution();
+            importExternalTaste();
+            try {
+                stremioPicks = fetchStremio();
+                learnFromStremioHistory(stremioLibrary);
+            } catch (Exception e) { AppLog.w("stremio: " + e.getMessage()); }
+            try { explorePicks = fetchExplore(); } catch (Exception e) { AppLog.w("explore: " + e.getMessage()); }
+            try { seriesPicks = fetchSeries(); } catch (Exception e) { AppLog.w("series: " + e.getMessage()); }
+            try { moviePicks = fetchMovies(); } catch (Exception e) { AppLog.w("movies: " + e.getMessage()); }
             try { animePicks = fetchAnime(); } catch (Exception e) { AppLog.w("anime: " + e.getMessage()); }
-            try { stremioPicks = fetchStremio(); } catch (Exception e) { AppLog.w("stremio: " + e.getMessage()); }
             extrasFetching = false;
             notifyListeners();
         });
     }
 
-    private List<Pick> fetchAnime() throws Exception {
-        JSONArray arr = get("/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&language=" + lang()).getJSONArray("results");
-        List<Pick> out = new ArrayList<>();
-        for (int i = 0; i < arr.length() && out.size() < MAX_CARDS; i++) {
-            JSONObject o = arr.getJSONObject(i);
-            String bd = o.optString("backdrop_path", "");
-            if (bd.isEmpty() || "null".equals(bd)) continue;
-            Pick p = new Pick();
-            p.kind = "anime";
-            p.id = o.getInt("id");
-            p.title = o.optString("name", o.optString("original_name", ""));
-            p.backdrop = bd;
-            String po = o.optString("poster_path", "");
-            p.poster = po.isEmpty() || "null".equals(po) ? null : po;
-            String year = o.optString("first_air_date", "");
-            p.meta = "Anime" + (year.length() >= 4 ? " \u00b7 " + year.substring(0, 4) : "");
-            p.pkg = "com.stremio.one";
-            p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
-            p.detailed = true;
-            out.add(p);
+
+    static int classifyWorld(JSONObject o, String kind) {
+        if (o == null) return 0;
+        JSONArray g = o.optJSONArray("genre_ids");
+        if (g != null && g.length() > 0) {
+            Set<Integer> set = new HashSet<>();
+            for (int i = 0; i < g.length(); i++) set.add(g.optInt(i));
+            if (!"anime".equals(kind) && set.contains(16)) return 6; // Anime / Animacao
+            if (set.contains(878) || set.contains(10765)) return 0; // Sci-Fi & Espaco
+            if (set.contains(14) || set.contains(12)) return 1;    // Fantasia & Aventura
+            if (set.contains(28) || set.contains(10759)) return 2; // Acao
+            if (set.contains(27) || set.contains(80) || set.contains(53) || set.contains(9648)) return 3; // Suspense / Crime / Terror
+            if (set.contains(35) || set.contains(10751) || set.contains(10749) || set.contains(10762)) return 4; // Comedia & Familia
+            if (set.contains(18) || set.contains(36) || set.contains(10752) || set.contains(10768) || set.contains(99)) return 5; // Drama / Historia
         }
-        return out;
+        return Math.abs(o.optInt("id", 0) % 7);
+    }
+
+    private static List<Pick> mixWorlds(List<Pick> items) {
+        if (items == null || items.size() <= 2) return items;
+        Map<Integer, List<Pick>> buckets = new LinkedHashMap<>();
+        for (int i = 0; i < 7; i++) buckets.put(i, new ArrayList<>());
+        for (Pick p : items) {
+            int w = (p.world >= 0 && p.world < 7) ? p.world : Math.abs(p.id % 7);
+            buckets.get(w).add(p);
+        }
+        List<Pick> mixed = new ArrayList<>();
+        int lastWorld = -1;
+        int max = items.size();
+        for (int round = 0; round < max && mixed.size() < max; round++) {
+            for (int step = 0; step < 7; step++) {
+                int w = (round + step) % 7;
+                if (w == lastWorld) continue;
+                List<Pick> b = buckets.get(w);
+                if (b != null && !b.isEmpty()) {
+                    mixed.add(b.remove(0));
+                    lastWorld = w;
+                    if (mixed.size() >= max) break;
+                }
+            }
+        }
+        for (int w = 0; w < 7; w++) {
+            List<Pick> b = buckets.get(w);
+            if (b != null) mixed.addAll(b);
+        }
+        return mixed;
+    }
+
+    private List<Pick> fetchSeries() {
+        List<Pick> related = new ArrayList<>();
+        List<Pick> trending = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        Set<String> seenFranchises = new HashSet<>();
+
+        try {
+            // Nao inclua animes na aba series: without_genres=16
+            JSONArray arr = get("/discover/tv?sort_by=popularity.desc&vote_count.gte=80&vote_average.gte=6.5&without_genres=16&language=" + lang() + "&page=1").getJSONArray("results");
+            for (int i = 0; i < arr.length() && trending.size() < 16; i++) {
+                JSONObject o = arr.getJSONObject(i);
+                if ("ja".equals(o.optString("original_language", ""))) continue;
+                JSONArray gIds = o.optJSONArray("genre_ids");
+                if (gIds != null) {
+                    boolean isAni = false;
+                    for (int gi = 0; gi < gIds.length(); gi++) {
+                        if (gIds.optInt(gi) == 16) { isAni = true; break; }
+                    }
+                    if (isAni) continue;
+                }
+                String name = o.optString("name", "");
+                if (Prefs.isDisliked(name) || Prefs.isDisliked(franchise(name))) continue;
+                String bd = o.optString("backdrop_path", "");
+                if (bd.isEmpty() || "null".equals(bd)) continue;
+                Pick p = new Pick();
+                p.kind = "tv";
+                p.id = o.getInt("id");
+                p.world = classifyWorld(o, p.kind);
+                p.title = name;
+                String fKey = franchise(p.title);
+                if (seenFranchises.contains(fKey)) continue;
+                seenFranchises.add(fKey);
+                p.backdrop = bd;
+                String po = o.optString("poster_path", "");
+                p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                String year = o.optString("first_air_date", "");
+                double vote = o.optDouble("vote_average", 0);
+                String rating = vote > 0 ? String.format(Locale.ROOT, " \u00b7 %.1f", vote) : "";
+                p.tag = "Série em Alta";
+                p.meta = "Série em Alta" + (year.length() >= 4 ? " \u00b7 " + year.substring(0, 4) : "") + rating;
+                p.pkg = "com.stremio.one";
+                p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                p.detailed = true;
+                if (seen.add(p.title.toLowerCase(Locale.ROOT))) trending.add(p);
+            }
+        } catch (Exception e) {
+            AppLog.w("fetchSeries trending: " + e.getMessage());
+        }
+
+        try {
+            List<JSONObject> seriesPool = new ArrayList<>();
+            for (JSONObject it : stremioLibrary) {
+                String type = it.optString("type", "");
+                String id = it.optString("_id", "");
+                if ("series".equals(type) && id.startsWith("tt")) {
+                    String name = it.optString("name", "");
+                    if (!Prefs.isDisliked(name) && !Prefs.isDisliked(franchise(name))) {
+                        seriesPool.add(it);
+                    }
+                }
+            }
+            java.util.Collections.sort(seriesPool, (a, b) -> {
+                JSONObject sa = a.optJSONObject("state"), sb = b.optJSONObject("state");
+                int scoreA = (sa != null ? sa.optInt("timesWatched", 0) * 8 : 0);
+                int scoreB = (sb != null ? sb.optInt("timesWatched", 0) * 8 : 0);
+                if (scoreA != scoreB) return Integer.compare(scoreB, scoreA);
+                String la = sa != null ? sa.optString("lastWatched", "") : "";
+                String lb = sb != null ? sb.optString("lastWatched", "") : "";
+                return lb.compareTo(la);
+            });
+
+            Set<String> seedFranchises = new HashSet<>();
+            for (JSONObject it : seriesPool) {
+                String sourceName = it.optString("name", "");
+                String fKey = franchise(sourceName);
+                if (!seedFranchises.add(fKey)) continue;
+                String imdb = it.optString("_id", "");
+                try {
+                    JSONObject find = get("/find/" + imdb + "?external_source=imdb_id");
+                    JSONArray res = find.optJSONArray("tv_results");
+                    if (res != null && res.length() > 0) {
+                        JSONObject r0 = res.getJSONObject(0);
+                        if ("ja".equals(r0.optString("original_language", ""))) continue;
+                        JSONArray r0g = r0.optJSONArray("genre_ids");
+                        if (r0g != null) {
+                            boolean isAni = false;
+                            for (int gi = 0; gi < r0g.length(); gi++) {
+                                if (r0g.optInt(gi) == 16) { isAni = true; break; }
+                            }
+                            if (isAni) continue;
+                        }
+                        int tmdbId = r0.getInt("id");
+                        JSONArray recArr = get("/tv/" + tmdbId + "/recommendations?language=" + lang() + "&page=1").optJSONArray("results");
+                        if (recArr != null) {
+                            for (int j = 0; j < recArr.length(); j++) {
+                                JSONObject o = recArr.getJSONObject(j);
+                                if ("ja".equals(o.optString("original_language", ""))) continue;
+                                JSONArray rgIds = o.optJSONArray("genre_ids");
+                                if (rgIds != null) {
+                                    boolean isAni = false;
+                                    for (int gi = 0; gi < rgIds.length(); gi++) {
+                                        if (rgIds.optInt(gi) == 16) { isAni = true; break; }
+                                    }
+                                    if (isAni) continue;
+                                }
+                                double vote = o.optDouble("vote_average", 0);
+                                if (vote < 6.8) continue;
+                                String title = o.optString("name", "");
+                                if (Prefs.isDisliked(title) || Prefs.isDisliked(franchise(title))) continue;
+                                String rfKey = franchise(title);
+                                if (seenFranchises.contains(rfKey)) continue;
+                                String bd = o.optString("backdrop_path", "");
+                                if (bd.isEmpty() || "null".equals(bd)) continue;
+
+                                Pick p = new Pick();
+                                p.kind = "tv";
+                                p.id = o.getInt("id");
+                                p.world = classifyWorld(o, p.kind);
+                                p.title = title;
+                                p.backdrop = bd;
+                                String po = o.optString("poster_path", "");
+                                p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                                p.tag = "Porque você assistiu " + sourceName;
+                                String year = o.optString("first_air_date", "");
+                                String rating = vote > 0 ? String.format(Locale.ROOT, " \u00b7 %.1f", vote) : "";
+                                p.meta = p.tag + (year.length() >= 4 ? " \u00b7 " + year.substring(0, 4) : "") + rating;
+                                p.pkg = "com.stremio.one";
+                                p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                                p.detailed = true;
+
+                                if (seen.add(p.title.toLowerCase(Locale.ROOT))) {
+                                    seenFranchises.add(rfKey);
+                                    related.add(p);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+                if (related.size() >= 16) break;
+            }
+        } catch (Exception e) {
+            AppLog.w("fetchSeries related: " + e.getMessage());
+        }
+
+        List<Pick> out = new ArrayList<>();
+        int r = 0, t = 0;
+        while (r < related.size() || t < trending.size()) {
+            if (r < related.size()) out.add(related.get(r++));
+            if (r < related.size()) out.add(related.get(r++));
+            if (t < trending.size()) out.add(trending.get(t++));
+        }
+        java.util.Collections.sort(out, (p1, p2) -> Float.compare(calculateAffinityScore(p2), calculateAffinityScore(p1)));
+        AppLog.w("fetchSeries loaded " + out.size() + " personalized series picks (no anime)");
+        return mixWorlds(out);
+    }
+
+    private List<Pick> fetchMovies() {
+        List<Pick> related = new ArrayList<>();
+        List<Pick> acclaimed = new ArrayList<>();
+        Set<String> seenTitles = new HashSet<>();
+        Set<String> seenFranchises = new HashSet<>();
+
+        // 1. Filmes Novos Aclamados e em Alta (TMDB)
+        try {
+            JSONArray arr = get("/discover/movie?sort_by=popularity.desc&primary_release_date.gte=" + day(-365)
+                    + "&vote_count.gte=80&vote_average.gte=6.4&language=" + lang() + "&page=1").getJSONArray("results");
+            for (int i = 0; i < arr.length() && acclaimed.size() < 16; i++) {
+                JSONObject o = arr.getJSONObject(i);
+                String bd = o.optString("backdrop_path", "");
+                if (bd.isEmpty() || "null".equals(bd)) continue;
+                Pick p = new Pick();
+                p.kind = "movie";
+                p.id = o.getInt("id");
+                p.world = classifyWorld(o, p.kind);
+                p.title = o.optString("title", "");
+                String fKey = franchise(p.title);
+                if (seenFranchises.contains(fKey) || Prefs.isDisliked(p.title) || Prefs.isDisliked(fKey)) continue;
+                seenFranchises.add(fKey);
+                p.backdrop = bd;
+                String po = o.optString("poster_path", "");
+                p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                String year = o.optString("release_date", "");
+                double vote = o.optDouble("vote_average", 0);
+                int matchPct = Math.min(99, Math.max(85, (int) (88 + (vote - 6.5) * 6)));
+                String rating = vote > 0 ? String.format(Locale.ROOT, " · %.1f", vote) : "";
+                p.tag = "Filme em Destaque";
+                p.meta = matchPct + "% Relevante" + (year.length() >= 4 ? " · " + year.substring(0, 4) : "") + rating;
+                p.pkg = "com.stremio.one";
+                p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                p.detailed = true;
+                if (seenTitles.add(p.title.toLowerCase(Locale.ROOT))) acclaimed.add(p);
+            }
+        } catch (Exception e) {
+            AppLog.w("fetchMovies acclaimed: " + e.getMessage());
+        }
+
+        // 2. Netflix Scoring para os filmes assistidos no Stremio
+        try {
+            List<JSONObject> moviePool = new ArrayList<>();
+            for (JSONObject it : stremioLibrary) {
+                String type = it.optString("type", "");
+                String id = it.optString("_id", "");
+                if ("movie".equals(type) && id.startsWith("tt")) {
+                    JSONObject st = it.optJSONObject("state");
+                    if (st != null) {
+                        long off = st.optLong("timeOffset", 0), dur = st.optLong("duration", 0);
+                        int tw = st.optInt("timesWatched", 0);
+                        float pct = dur > 0 ? (float) off / dur : 0;
+                        int score = 0;
+                        if (tw > 0) score += tw * 12;
+                        if (pct >= 0.80f) score += 10;
+                        else if (pct >= 0.30f) score += 6;
+                        else if (pct > 0 && pct < 0.15f && tw == 0) score -= 15; // Penaliza abandonados
+                        String lw = st.optString("lastWatched", "");
+                        if (lw.length() >= 4 && lw.startsWith("2026")) score += 8;
+
+                        if (Prefs.isLiked(it.optString("name", ""))) score += 30; if (score > 0 && !Prefs.isDisliked(it.optString("name", ""))) {
+                            it.put("_score", score);
+                            moviePool.add(it);
+                        }
+                    }
+                }
+            }
+            java.util.Collections.sort(moviePool, (a, b) -> Integer.compare(b.optInt("_score", 0), a.optInt("_score", 0)));
+
+            Set<String> seedFranchises = new HashSet<>();
+            for (JSONObject item : moviePool) {
+                String sourceName = item.optString("name", "");
+                String fKey = franchise(sourceName);
+                if (!seedFranchises.add(fKey)) continue;
+                String imdb = item.optString("_id", "");
+                try {
+                    JSONObject find = get("/find/" + imdb + "?external_source=imdb_id");
+                    JSONArray res = find.optJSONArray("movie_results");
+                    if (res != null && res.length() > 0) {
+                        int tmdbId = res.getJSONObject(0).getInt("id");
+                        JSONArray recArr = get("/movie/" + tmdbId + "/recommendations?language=" + lang() + "&page=1").optJSONArray("results");
+                        if (recArr != null) {
+                            for (int j = 0; j < recArr.length(); j++) {
+                                JSONObject o = recArr.getJSONObject(j);
+                                double vote = o.optDouble("vote_average", 0);
+                                if (vote < 6.8 && o.optInt("vote_count", 0) < 50) continue;
+                                String title = o.optString("title", "");
+                                String rfKey = franchise(title);
+                                if (seenFranchises.contains(rfKey) || Prefs.isDisliked(title) || Prefs.isDisliked(rfKey)) continue;
+                                String bd = o.optString("backdrop_path", "");
+                                if (bd.isEmpty() || "null".equals(bd)) continue;
+
+                                Pick p = new Pick();
+                                p.kind = "movie";
+                                p.id = o.getInt("id");
+                                p.world = classifyWorld(o, p.kind);
+                                p.title = title;
+                                p.backdrop = bd;
+                                String po = o.optString("poster_path", "");
+                                p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                                p.tag = "Porque você assistiu " + sourceName;
+                                String year = o.optString("release_date", "");
+                                int matchPct = Math.min(99, Math.max(86, (int) (90 + (vote - 7.0) * 5)));
+                                String rating = vote > 0 ? String.format(Locale.ROOT, " · %.1f", vote) : "";
+                                p.meta = matchPct + "% Relevante" + (year.length() >= 4 ? " · " + year.substring(0, 4) : "") + rating;
+                                p.pkg = "com.stremio.one";
+                                p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                                p.detailed = true;
+
+                                if (seenTitles.add(p.title.toLowerCase(Locale.ROOT))) {
+                                    seenFranchises.add(rfKey);
+                                    related.add(p);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+                if (related.size() >= 16) break;
+            }
+        } catch (Exception e) {
+            AppLog.w("fetchMovies related: " + e.getMessage());
+        }
+
+        List<Pick> out = new ArrayList<>();
+        int r = 0, a = 0;
+        while (r < related.size() || a < acclaimed.size()) {
+            if (r < related.size()) out.add(related.get(r++));
+            if (r < related.size()) out.add(related.get(r++));
+            if (a < acclaimed.size()) out.add(acclaimed.get(a++));
+        }
+        java.util.Collections.sort(out, (p1, p2) -> Float.compare(calculateAffinityScore(p2), calculateAffinityScore(p1)));
+        AppLog.w("fetchMovies loaded " + out.size() + " personalized movie picks");
+        return mixWorlds(out);
+    }
+
+    private List<Pick> fetchAnime() throws Exception {
+        List<Pick> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        String[] endpoints = new String[] {
+            "/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&language=" + lang(),
+            "/discover/tv?with_genres=16,10759&with_original_language=ja&sort_by=popularity.desc&language=" + lang(),
+            "/discover/tv?with_genres=16,10765&with_original_language=ja&sort_by=vote_count.desc&language=" + lang(),
+            "/discover/tv?with_genres=16,35&with_original_language=ja&sort_by=popularity.desc&language=" + lang()
+        };
+        for (String ep : endpoints) {
+            try {
+                JSONArray arr = get(ep).optJSONArray("results");
+                if (arr == null) continue;
+                for (int i = 0; i < arr.length() && out.size() < 24; i++) {
+                    JSONObject o = arr.getJSONObject(i);
+                    String bd = o.optString("backdrop_path", "");
+                    if (bd.isEmpty() || "null".equals(bd)) continue;
+                    String title = o.optString("name", o.optString("original_name", ""));
+                    if (!seen.add(title.toLowerCase(Locale.ROOT))) continue;
+                    Pick p = new Pick();
+                    p.kind = "anime";
+                    p.id = o.getInt("id");
+                    p.world = classifyWorld(o, p.kind);
+                    p.title = title;
+                    p.backdrop = bd;
+                    String po = o.optString("poster_path", "");
+                    p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                    String year = o.optString("first_air_date", "");
+                    double vote = o.optDouble("vote_average", 0);
+                    String rating = vote > 0 ? String.format(Locale.ROOT, " · %.1f", vote) : "";
+                    p.tag = "Anime em Alta";
+                    p.meta = "Anime" + (year.length() >= 4 ? " · " + year.substring(0, 4) : "") + rating;
+                    p.pkg = "com.stremio.one";
+                    p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                    p.detailed = true;
+                    out.add(p);
+                }
+            } catch (Exception ignored) {}
+        }
+        return mixWorlds(out);
     }
 
     private List<Pick> fetchStremio() throws Exception {
@@ -1219,6 +1745,9 @@ final class Recs {
             c.disconnect();
         }
         JSONArray arr = new JSONObject(bos.toString("UTF-8")).getJSONArray("result");
+        List<JSONObject> allLib = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) allLib.add(arr.getJSONObject(i));
+        stremioLibrary = allLib;
         List<JSONObject> items = new ArrayList<>();
         for (int i = 0; i < arr.length(); i++) {
             JSONObject o = arr.getJSONObject(i);
@@ -1232,7 +1761,7 @@ final class Recs {
                 .compareTo(a.optJSONObject("state").optString("lastWatched", "")));
         List<Pick> out = new ArrayList<>();
         for (JSONObject o : items) {
-            if (out.size() >= MAX_CARDS) break;
+            if (out.size() >= 15) break;
             JSONObject s = o.optJSONObject("state");
             String id = o.optString("_id", ""), type = o.optString("type", "movie");
             if (id.isEmpty()) continue;
@@ -1254,12 +1783,163 @@ final class Recs {
             String ep = "series".equals(type) && parts.length >= 3 ? "T" + parts[parts.length - 2] + " E" + parts[parts.length - 1] + " \u00b7 " : "";
             long left = Math.max(0, (dur - off) / 60000);
             p.meta = ep + pct + "% \u00b7 faltam " + left + " min";
+            p.tag = ep.isEmpty() ? (pct + "%") : ep.replace(" \u00b7 ", "");
+            p.mine = pct;
             p.pkg = "com.stremio.one";
             p.link = "stremio:///detail/" + type + "/" + id + (vid.isEmpty() ? "" : "/" + vid);
             p.detailed = true;
             out.add(p);
         }
         return out;
+    }
+
+    private List<Pick> fetchExplore() {
+        List<Pick> newMovies = new ArrayList<>();
+        List<Pick> related = new ArrayList<>();
+        Set<String> seenTitles = new HashSet<>();
+        Set<String> seenFranchises = new HashSet<>();
+
+        // 1. Netflix Scoring de Afinidade no Stremio:
+        // Avalia conclusão (off/dur), rewatch (timesWatched), penaliza abandonados (< 15% sem rewatch) e recência.
+        List<JSONObject> scoredSeeds = new ArrayList<>();
+        for (JSONObject it : stremioLibrary) {
+            String id = it.optString("_id", "");
+            if (!id.startsWith("tt")) continue;
+            JSONObject st = it.optJSONObject("state");
+            if (st == null) continue;
+            long off = st.optLong("timeOffset", 0), dur = st.optLong("duration", 0);
+            int tw = st.optInt("timesWatched", 0);
+            float pct = dur > 0 ? (float) off / dur : 0;
+            int score = 0;
+            if (tw > 0) score += tw * 12;
+            if (pct >= 0.80f) score += 10;
+            else if (pct >= 0.30f) score += 6;
+            else if (pct > 0 && pct < 0.15f && tw == 0) score -= 15; // Penaliza abandonados no início
+            String lw = st.optString("lastWatched", "");
+            if (lw.length() >= 4 && lw.startsWith("2026")) score += 8;
+
+            if (Prefs.isLiked(it.optString("name", ""))) score += 30; if (score > 0 && !Prefs.isDisliked(it.optString("name", ""))) {
+                try { it.put("_score", score); scoredSeeds.add(it); } catch (Exception ignored) {}
+            }
+        }
+        java.util.Collections.sort(scoredSeeds, (a, b) -> Integer.compare(b.optInt("_score", 0), a.optInt("_score", 0)));
+
+        // 2. Filtra sementes diversas (uma por franquia) dos títulos mais amados
+        List<JSONObject> diverseSeeds = new ArrayList<>();
+        Set<String> seedFranchises = new HashSet<>();
+        for (JSONObject it : scoredSeeds) {
+            String fKey = franchise(it.optString("name", ""));
+            if (seedFranchises.add(fKey)) {
+                diverseSeeds.add(it);
+                if (diverseSeeds.size() >= 16) break;
+            }
+        }
+
+        // 3. Filtragem Colaborativa do TMDB (Recomendações Diretas):
+        // Exatamente 1 recomendação por título amado, nota >= 6.8
+        for (JSONObject item : diverseSeeds) {
+            String imdb = item.optString("_id", "");
+            String stype = item.optString("type", "movie");
+            String sourceName = item.optString("name", "");
+            try {
+                JSONObject find = get("/find/" + imdb + "?external_source=imdb_id");
+                JSONArray res = "series".equals(stype) ? find.optJSONArray("tv_results") : find.optJSONArray("movie_results");
+                if (res != null && res.length() > 0) {
+                    int tmdbId = res.getJSONObject(0).getInt("id");
+                    String epType = "series".equals(stype) ? "tv" : "movie";
+                    JSONArray recArr = null;
+                    try {
+                        recArr = get("/" + epType + "/" + tmdbId + "/recommendations?language=" + lang() + "&page=1").optJSONArray("results");
+                    } catch (Exception ignored) {}
+                    if (recArr == null || recArr.length() == 0) {
+                        try {
+                            recArr = get("/" + epType + "/" + tmdbId + "/similar?language=" + lang() + "&page=1").optJSONArray("results");
+                        } catch (Exception ignored) {}
+                    }
+                    if (recArr != null) {
+                        for (int j = 0; j < recArr.length(); j++) {
+                            JSONObject o = recArr.getJSONObject(j);
+                            double vote = o.optDouble("vote_average", 0);
+                            if (vote < 6.8 && o.optInt("vote_count", 0) < 50) continue;
+                            String title = o.optString("title", o.optString("name", ""));
+                            String rfKey = franchise(title);
+                            if (seenFranchises.contains(rfKey) || Prefs.isDisliked(title) || Prefs.isDisliked(rfKey)) continue;
+                            String bd = o.optString("backdrop_path", "");
+                            if (bd.isEmpty() || "null".equals(bd)) continue;
+
+                            Pick p = new Pick();
+                            p.kind = epType;
+                            p.id = o.getInt("id");
+                            p.world = classifyWorld(o, p.kind);
+                            p.title = title;
+                            p.backdrop = bd;
+                            String po = o.optString("poster_path", "");
+                            p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                            p.tag = "Porque você assistiu " + sourceName;
+                            String year = o.optString("release_date", o.optString("first_air_date", ""));
+                            int matchPct = Math.min(99, Math.max(86, (int) (90 + (vote - 7.0) * 5)));
+                            String rating = vote > 0 ? String.format(Locale.ROOT, " · %.1f", vote) : "";
+                            p.meta = matchPct + "% Relevante" + (year.length() >= 4 ? " · " + year.substring(0, 4) : "") + rating;
+                            p.pkg = "com.stremio.one";
+                            p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                            p.detailed = true;
+
+                            if (seenTitles.add(p.title.toLowerCase(Locale.ROOT))) {
+                                seenFranchises.add(rfKey);
+                                related.add(p);
+                                break; // Exatamente 1 recomendação por semente (sem spam)!
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 4. Filmes Novos Aclamados (TMDB)
+        try {
+            JSONArray arr = get("/discover/movie?sort_by=popularity.desc&primary_release_date.gte=" + day(-365)
+                    + "&vote_count.gte=80&vote_average.gte=6.4&language=" + lang() + "&page=1").getJSONArray("results");
+            for (int i = 0; i < arr.length() && newMovies.size() < 18; i++) {
+                JSONObject o = arr.getJSONObject(i);
+                String bd = o.optString("backdrop_path", "");
+                if (bd.isEmpty() || "null".equals(bd)) continue;
+                Pick p = new Pick();
+                p.kind = "movie";
+                p.id = o.getInt("id");
+                p.world = classifyWorld(o, p.kind);
+                p.title = o.optString("title", "");
+                String fKey = franchise(p.title);
+                if (seenFranchises.contains(fKey) || Prefs.isDisliked(p.title) || Prefs.isDisliked(fKey)) continue;
+                seenFranchises.add(fKey);
+                p.backdrop = bd;
+                String po = o.optString("poster_path", "");
+                p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+                String year = o.optString("release_date", "");
+                p.tag = "Novo Lançamento";
+                double vote = o.optDouble("vote_average", 0);
+                int matchPct = Math.min(99, Math.max(85, (int) (88 + (vote - 6.5) * 6)));
+                String rating = vote > 0 ? String.format(Locale.ROOT, " · %.1f", vote) : "";
+                p.meta = matchPct + "% Relevante" + (year.length() >= 4 ? " · " + year.substring(0, 4) : "") + rating;
+                p.pkg = "com.stremio.one";
+                p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+                p.detailed = true;
+                if (seenTitles.add(p.title.toLowerCase(Locale.ROOT))) {
+                    newMovies.add(p);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 5. Intercalação Harmônica
+        List<Pick> out = new ArrayList<>();
+        int rIdx = 0, nIdx = 0;
+        while (rIdx < related.size() || nIdx < newMovies.size()) {
+            if (rIdx < related.size()) out.add(related.get(rIdx++));
+            if (rIdx < related.size()) out.add(related.get(rIdx++));
+            if (nIdx < newMovies.size()) out.add(newMovies.get(nIdx++));
+        }
+        java.util.Collections.sort(out, (p1, p2) -> Float.compare(calculateAffinityScore(p2), calculateAffinityScore(p1)));
+        AppLog.w("fetchExplore Netflix engine loaded " + out.size() + " matches (related=" + related.size() + ", newMovies=" + newMovies.size() + ")");
+        return mixWorlds(out);
     }
 
     // MARK: - Images (TMDB originals on disk, up to 24 so the whole list fits; this hour's kept ready in memory)
@@ -1296,8 +1976,8 @@ final class Recs {
         //noinspection ResultOfMethodCallIgnored
         f.getParentFile().mkdirs();
         File part = new File(f.getPath() + ".part");
-        c.setConnectTimeout(8000);
-        c.setReadTimeout(20000);
+        c.setConnectTimeout(4000);
+        c.setReadTimeout(6000);
         try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
             byte[] buffer = new byte[16384];
             int n;
@@ -1310,7 +1990,7 @@ final class Recs {
             c.disconnect();
         }
         if (!part.renameTo(f)) throw new IOException("couldn't save the image");
-        prune(f.getParentFile());
+        if (Math.random() < 0.1) prune(f.getParentFile());
     }
 
     /** Reads the photo (≥ the UI's width) and builds the backdrop (Backdrop: cards plus frosted and glass versions). */
@@ -1326,6 +2006,7 @@ final class Recs {
             BitmapFactory.decodeFile(f.getPath(), bounds);
             BitmapFactory.Options opts = new BitmapFactory.Options();
             opts.inSampleSize = 1;
+            opts.inPreferredConfig = Bitmap.Config.RGB_565;
             while (bounds.outWidth / (opts.inSampleSize * 2) >= Backdrop.W) opts.inSampleSize *= 2;
             Bitmap b = BitmapFactory.decodeFile(f.getPath(), opts);
             if (b == null) throw new IOException("unreadable image");
@@ -1337,7 +2018,7 @@ final class Recs {
             synchronized (images) {
                 images.put(p.backdrop, backdrop);
                 if (poster != null) posters.put(p.backdrop, poster);
-                while (images.size() > (forLight ? Prefs.cards() + 7 : 4)) images.remove(images.keySet().iterator().next());
+                while (images.size() > 32) images.remove(images.keySet().iterator().next());
                 posters.keySet().retainAll(images.keySet());
             }
             notifyListeners();
@@ -1352,7 +2033,9 @@ final class Recs {
     private Poster loadPoster(Pick p) {
         File f = posterFile(p);
         if (f == null || !f.exists()) return null;
-        Bitmap full = BitmapFactory.decodeFile(f.getPath());
+        BitmapFactory.Options pOpts = new BitmapFactory.Options();
+        pOpts.inPreferredConfig = Bitmap.Config.RGB_565;
+        Bitmap full = BitmapFactory.decodeFile(f.getPath(), pOpts);
         if (full == null) {
             //noinspection ResultOfMethodCallIgnored
             f.delete();

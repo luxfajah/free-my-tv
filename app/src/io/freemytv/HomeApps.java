@@ -60,6 +60,8 @@ final class HomeApps {
     static final int INPUTS = 7;
     /** The Recent Apps switcher (the home screen opens it). */
     static final int RECENTS = 8;
+    /** Controle Remoto pelo Celular via Web / QR Code */
+    static final int REMOTE_QR = 20;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
     static final int TILE_W = 384, TILE_H = 216;
 
@@ -272,10 +274,10 @@ final class HomeApps {
 
     // MARK: - Top buttons (the round ones at the top right)
 
-    static final String TOP_LIVE = "live", TOP_INPUTS = "inputs", TOP_SETTINGS = "settings", TOP_RECENTS = "recents";
-    static final List<String> TOP_DEFAULT = Collections.unmodifiableList(java.util.Arrays.asList(TOP_LIVE, TOP_INPUTS, TOP_SETTINGS));
-    /** What can be a top button: the default three, and Recent Apps for whoever adds it. */
-    static final List<String> TOP_ALL = Collections.unmodifiableList(java.util.Arrays.asList(TOP_LIVE, TOP_INPUTS, TOP_SETTINGS, TOP_RECENTS));
+    static final String TOP_LIVE = "live", TOP_INPUTS = "inputs", TOP_SETTINGS = "settings", TOP_RECENTS = "recents", TOP_REMOTE = "remote";
+    static final List<String> TOP_DEFAULT = Collections.unmodifiableList(java.util.Arrays.asList(TOP_LIVE, TOP_INPUTS, TOP_REMOTE, TOP_SETTINGS));
+    /** What can be a top button: the default four, and Recent Apps for whoever adds it. */
+    static final List<String> TOP_ALL = Collections.unmodifiableList(java.util.Arrays.asList(TOP_LIVE, TOP_INPUTS, TOP_REMOTE, TOP_SETTINGS, TOP_RECENTS));
     static final int MAX_TOP = TOP_ALL.size();
 
     /** The keys of the top buttons, in order (Settings > Top Buttons; by default Live TV, HDMI Inputs, Settings). */
@@ -286,6 +288,11 @@ final class HomeApps {
         for (String key : saved) {
             if (key.equals(TOP_RECENTS) && Prefs.recents().equals("off")) continue;   // Recent Apps is off: no button either
             if (TOP_ALL.contains(key) && !keys.contains(key)) keys.add(key);
+        }
+        if (!keys.contains(TOP_REMOTE)) {
+            int idx = keys.indexOf(TOP_SETTINGS);
+            if (idx >= 0) keys.add(idx, TOP_REMOTE);
+            else keys.add(TOP_REMOTE);
         }
         return keys;
     }
@@ -301,6 +308,7 @@ final class HomeApps {
         switch (key) {
             case TOP_LIVE: return action(LIVE_TV, TOP_LIVE, Ui.tr("light|Live TV"), "live_tv");
             case TOP_INPUTS: return action(INPUTS, TOP_INPUTS, Ui.tr("HDMI Inputs"), "hdmi");
+            case TOP_REMOTE: return action(REMOTE_QR, TOP_REMOTE, Ui.tr("Controle Celular"), "cast");
             case TOP_RECENTS: return action(RECENTS, TOP_RECENTS, Ui.tr("Recent Apps"), "recents");
             default: return action(SETTINGS, TOP_SETTINGS, Ui.tr("light|Settings"), "settings");
         }

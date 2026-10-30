@@ -268,6 +268,80 @@ final class Prefs {
     static Set<String> watchHidden() { return new HashSet<>(sp().getStringSet("watchHidden", new HashSet<>())); }
     static void setWatchHidden(Set<String> keys) { putQuietly("watchHidden", keys); }
 
+    /** Titles/franchises marked as "Não Gostei": receives score 0 and never recommended. */
+    static Set<String> dislikedTitles() { return new HashSet<>(sp().getStringSet("dislikedTitles", new HashSet<>())); }
+    static void addDislikedTitle(String title) {
+        if (title == null || title.trim().isEmpty()) return;
+        Set<String> set = dislikedTitles();
+        set.add(title.trim().toLowerCase(Locale.ROOT));
+        putQuietly("dislikedTitles", set);
+    }
+    static boolean isDisliked(String title) {
+        if (title == null) return false;
+        return dislikedTitles().contains(title.trim().toLowerCase(Locale.ROOT));
+    }
+
+    /** Titles/franchises marked as "Gostei": prioritized by the recommendation engine. */
+    static Set<String> likedTitles() { return new HashSet<>(sp().getStringSet("likedTitles", new HashSet<>())); }
+    static void addLikedTitle(String title) {
+        if (title == null || title.trim().isEmpty()) return;
+        Set<String> set = likedTitles();
+        set.add(title.trim().toLowerCase(Locale.ROOT));
+        putQuietly("likedTitles", set);
+    }
+    static boolean isLiked(String title) {
+        if (title == null) return false;
+        return likedTitles().contains(title.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private static void putQuietly(String key, float value) {
+        sp().edit().putFloat(key, value).apply();
+    }
+
+    private static void putQuietly(String key, long value) {
+        sp().edit().putLong(key, value).apply();
+    }
+
+    /** Dynamic World Affinity Weights (0 to 6) - Learns user preferences over time. */
+    static float worldAffinity(int world) {
+        if (world < 0 || world > 6) return 1.0f;
+        return sp().getFloat("world_affinity_" + world, 1.0f);
+    }
+
+    static void adjustWorldAffinity(int world, float delta) {
+        if (world < 0 || world > 6) return;
+        float current = worldAffinity(world);
+        float updated = Math.max(0.15f, Math.min(6.0f, current + delta));
+        putQuietly("world_affinity_" + world, updated);
+    }
+
+    /** Dynamic Franchise Affinity - Learns specific universes/sagas. */
+    static float franchiseAffinity(String franchise) {
+        if (franchise == null || franchise.isEmpty()) return 0.0f;
+        return sp().getFloat("fa_" + franchise.hashCode(), 0.0f);
+    }
+
+    static void adjustFranchiseAffinity(String franchise, float delta) {
+        if (franchise == null || franchise.isEmpty()) return;
+        float current = franchiseAffinity(franchise);
+        float updated = Math.max(-20.0f, Math.min(30.0f, current + delta));
+        putQuietly("fa_" + franchise.hashCode(), updated);
+    }
+
+    /** Daily Autonomous Evolution: decaying stale weights to prevent echo chambers and learn new trends. */
+    static void dailyEvolution() {
+        long last = sp().getLong("last_evolution_day", 0);
+        long today = System.currentTimeMillis() / (24 * 3600_000L);
+        if (today == last) return;
+        putQuietly("last_evolution_day", today);
+
+        for (int w = 0; w < 7; w++) {
+            float cur = worldAffinity(w);
+            float decayed = 1.0f + (cur - 1.0f) * 0.95f;
+            putQuietly("world_affinity_" + w, decayed);
+        }
+    }
+
     /** Recent Apps: "off" (the default: Android manages memory on its own), "drawer" (a shortcut in the bottom drawer and the
      *  remote's app-switch key) or "home" (those, and pressing Home twice). The top button is its own choice (Top Buttons). */
     static String recents() {

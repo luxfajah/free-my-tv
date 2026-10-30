@@ -17,3 +17,16 @@ __pycache__/
 # macOS
 .DS_Store
 tools/.i18n-cache.json
+
+# Scratch & testing scripts
+patch_*.py
+test_*.py
+make_html.py
+update_*.py
+server_sync.py
+screen_*.png
+*.json
+!app/**
+filmes_preferencias.html
+restore_continue_tab.py
+test_engine.ts
