@@ -3,6 +3,7 @@ package io.freemytv;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -69,6 +70,40 @@ public class NowPlaying extends NotificationListenerService {
 
     private static boolean asked;
 
+    public static final class MediaInfo {
+        public final String title;
+        public final String artist;
+        public final String album;
+        public final String app;
+        public final Bitmap art;
+        public final long duration;
+        public final long position;
+        public final long positionAt;
+        public final boolean isPlaying;
+        public final MediaController controller;
+
+        public MediaInfo(String title, String artist, String album, String app, Bitmap art,
+                         long duration, long position, boolean isPlaying, MediaController controller) {
+            this.title = title != null ? title : "";
+            this.artist = artist != null ? artist : "";
+            this.album = album != null ? album : "";
+            this.app = app != null ? app : "";
+            this.art = art;
+            this.duration = duration;
+            this.position = position;
+            this.positionAt = SystemClock.elapsedRealtime();
+            this.isPlaying = isPlaying;
+            this.controller = controller;
+        }
+
+        public long currentPositionMs() {
+            if (!isPlaying) return position;
+            long elapsed = SystemClock.elapsedRealtime() - positionAt;
+            long pos = position + elapsed;
+            return duration > 0 ? Math.min(pos, duration) : pos;
+        }
+    }
+
     /** A screen's watch: start() when it shows, stop() when it's hidden. text is null while nothing plays. */
     static final class Watch implements MediaSessionManager.OnActiveSessionsChangedListener {
         private final Context context;
@@ -85,6 +120,7 @@ public class NowPlaying extends NotificationListenerService {
         volatile String text;
         /** The title alone (the app's package when it gives none): the line's other parts can change every second. */
         volatile String title;
+        public volatile MediaInfo mediaInfo;
 
         Watch(Context c, Runnable changed) {
             context = c;
@@ -129,20 +165,40 @@ public class NowPlaying extends NotificationListenerService {
 
         private void update() {
             String now = null, nowTitle = null;
+            MediaInfo newInfo = null;
             for (MediaController mc : controllers) {   // most recent first
                 PlaybackState s = mc.getPlaybackState();
                 int state = s == null ? PlaybackState.STATE_NONE : s.getState();
-                // A stream that buffers is still playing: the line doesn't blink back to the prices.
-                if (state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
-                        || state == PlaybackState.STATE_CONNECTING) {
+                boolean playing = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_BUFFERING
+                        || state == PlaybackState.STATE_CONNECTING;
+                if (playing) {
                     now = describe(mc);
                     MediaMetadata m = mc.getMetadata();
-                    CharSequence t = m == null ? null : m.getDescription().getTitle();
+                    MediaDescription d = m == null ? null : m.getDescription();
+                    CharSequence t = d == null ? null : d.getTitle();
                     nowTitle = now == null ? null : TextUtils.isEmpty(t) ? mc.getPackageName() : t.toString().trim();
+
+                    String trackTitle = d != null && !TextUtils.isEmpty(d.getTitle()) ? d.getTitle().toString().trim() : (m != null ? m.getString(MediaMetadata.METADATA_KEY_TITLE) : "");
+                    String trackArtist = d != null && !TextUtils.isEmpty(d.getSubtitle()) ? d.getSubtitle().toString().trim() : (m != null ? m.getString(MediaMetadata.METADATA_KEY_ARTIST) : "");
+                    String trackAlbum = m != null ? m.getString(MediaMetadata.METADATA_KEY_ALBUM) : "";
+                    Bitmap trackArt = d != null ? d.getIconBitmap() : null;
+                    if (trackArt == null && m != null) {
+                        trackArt = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+                        if (trackArt == null) trackArt = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
+                    }
+                    long duration = m != null ? m.getLong(MediaMetadata.METADATA_KEY_DURATION) : 0;
+                    long position = s != null ? s.getPosition() : 0;
+                    String appName = labels.get(mc.getPackageName());
+                    if (appName == null) appName = mc.getPackageName();
+                    newInfo = new MediaInfo(trackTitle, trackArtist, trackAlbum, appName, trackArt, duration, position, state == PlaybackState.STATE_PLAYING, mc);
                     break;
                 }
             }
-            if (Objects.equals(now, text)) return;
+            mediaInfo = newInfo;
+            if (Objects.equals(now, text)) {
+                changed.run();
+                return;
+            }
             title = nowTitle;
             text = now;
             changed.run();

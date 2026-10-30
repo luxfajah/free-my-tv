@@ -134,6 +134,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private final HomeData data;
     private final Recs recs;
     private final NowPlaying.Watch playing;
+    private final NowPlayingView nowPlayingView;
+    private boolean nowPlayingOpen = false;
     private final Click click;
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** The background follows the focused pick once it has been there this long (see bgFollow). */
@@ -428,7 +430,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 case SHEET: drawSheet(c); break;
                 case MENU: drawMenu(c); drawQrPopup(c); break;
                 case RECENT: if (recents != null) recents.draw(c, w, h); break;
-                default: drawToast(c); break;
+                default:
+                    if (nowPlayingOpen) {
+                        nowPlayingView.draw(c, w, h, playing != null ? playing.mediaInfo : null);
+                    }
+                    drawToast(c);
+                    break;
             }
             scene.setOffset(0, 0);
         }
@@ -625,6 +632,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         data = HomeData.get(a);
         recs = Recs.get(a);
         playing = new NowPlaying.Watch(a, this::onPlaying);
+        nowPlayingView = new NowPlayingView(a);
         click = new Click(a);
         shelfVisible = HomeApps.shelfVisible(a);
         ui = a.getSharedPreferences("home-ui", Context.MODE_PRIVATE);
@@ -1034,6 +1042,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         long up = SystemClock.uptimeMillis();
 
         settleWhileSliding();
+        if (nowPlayingOpen && playing != null && playing.mediaInfo != null && playing.mediaInfo.isPlaying) {
+            toastLayer.invalidate();
+            Choreographer.getInstance().postFrameCallback(this);
+        }
         boolean tilesMoving = step(tileFocus, dt);
         if (reorderAnim) tilesMoving |= stepReorder(dt, up);
         boolean statusMoving = step(statusFocus, dt);
@@ -1777,6 +1789,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (title != null && now != null && running && playingTab != null && !title.equals(shownTitle)) {
             shownTitle = title;
             bounceBars();
+            nowPlayingOpen = true;
+            toastLayer.invalidate();
+            Choreographer.getInstance().postFrameCallback(this);
             if (readerOn()) announceForAccessibility(Ui.trf("Now playing: {what}", "what", now.replace(" · ", ", ")));
         }
     }
@@ -2472,6 +2487,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** All Apps from the remote's button. Coming back from another app, resume() opens it (it closes the sheet). */
+    void showNowPlaying() {
+        nowPlayingOpen = true;
+        toastLayer.invalidate();
+        Choreographer.getInstance().postFrameCallback(this);
+    }
+
     void showAllApps() {
         if (!running) {
             allAppsOnResume = true;
@@ -3104,6 +3125,40 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (qrModalOpen) {
             if (e.getAction() == KeyEvent.ACTION_DOWN) {
                 closeQrModal();
+            }
+            return true;
+        }
+        if (nowPlayingOpen) {
+            if (e.getAction() == KeyEvent.ACTION_DOWN) {
+                int kc = e.getKeyCode();
+                if (kc == KeyEvent.KEYCODE_BACK) {
+                    nowPlayingOpen = false;
+                    toastLayer.invalidate();
+                    click.move();
+                    return true;
+                }
+                if (kc == KeyEvent.KEYCODE_DPAD_CENTER || kc == KeyEvent.KEYCODE_ENTER || kc == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
+                    if (playing != null && playing.mediaInfo != null && playing.mediaInfo.controller != null) {
+                        if (playing.mediaInfo.isPlaying) playing.mediaInfo.controller.getTransportControls().pause();
+                        else playing.mediaInfo.controller.getTransportControls().play();
+                    }
+                    click.open();
+                    return true;
+                }
+                if (kc == KeyEvent.KEYCODE_DPAD_RIGHT || kc == KeyEvent.KEYCODE_MEDIA_NEXT) {
+                    if (playing != null && playing.mediaInfo != null && playing.mediaInfo.controller != null) {
+                        playing.mediaInfo.controller.getTransportControls().skipToNext();
+                    }
+                    click.move();
+                    return true;
+                }
+                if (kc == KeyEvent.KEYCODE_DPAD_LEFT || kc == KeyEvent.KEYCODE_MEDIA_PREVIOUS) {
+                    if (playing != null && playing.mediaInfo != null && playing.mediaInfo.controller != null) {
+                        playing.mediaInfo.controller.getTransportControls().skipToPrevious();
+                    }
+                    click.move();
+                    return true;
+                }
             }
             return true;
         }

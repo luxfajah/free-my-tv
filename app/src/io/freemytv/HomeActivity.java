@@ -56,7 +56,10 @@ public class HomeActivity extends Activity {
         home.postDelayed(() -> home.showQrModal(8000), 1200);
         getWindow().setBackgroundDrawable(null);
         if (getIntent().getBooleanExtra(EXTRA_ALL_APPS, false)) home.showAllApps();
+        if (getIntent().getBooleanExtra("io.freemytv.NOW_PLAYING", false)) home.showNowPlaying();
     }
+
+
 
     public HomeView getHomeView() {
         return home;
@@ -87,6 +90,10 @@ public class HomeActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (home == null) return;
+        if (intent.getBooleanExtra("io.freemytv.NOW_PLAYING", false)) {
+            home.showNowPlaying();
+            return;
+        }
         if (intent.getBooleanExtra(EXTRA_ALL_APPS, false)) {
             home.showAllApps();
             return;
