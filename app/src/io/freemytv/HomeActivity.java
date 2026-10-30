@@ -52,8 +52,7 @@ public class HomeActivity extends Activity {
             });
         } catch (Exception ignored) {}
         setContentView(home);
-        // Show QR Code modal popup for 8 seconds on startup, auto-closing afterwards
-        home.postDelayed(() -> home.showQrModal(8000), 1200);
+        // QR Code modal disabled on startup
         getWindow().setBackgroundDrawable(null);
         if (getIntent().getBooleanExtra(EXTRA_ALL_APPS, false)) home.showAllApps();
         if (getIntent().getBooleanExtra("io.freemytv.NOW_PLAYING", false)) home.showNowPlaying();

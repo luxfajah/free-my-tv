@@ -128,7 +128,7 @@ public class NowPlaying extends NotificationListenerService {
         }
 
         void start() {
-            if (on || !Prefs.nowPlaying()) return;   // off in Home Settings: nothing watched at all
+            if (on) return;   // off in Home Settings: nothing watched at all
             MediaSessionManager m = context.getSystemService(MediaSessionManager.class);
             try {
                 m.addOnActiveSessionsChangedListener(this, component(context), handler);

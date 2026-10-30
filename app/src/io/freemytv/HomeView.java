@@ -428,14 +428,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 case TILES: drawTiles(c); break;
                 case DRAWER: drawDrawer(c); break;
                 case SHEET: drawSheet(c); break;
-                case MENU: drawMenu(c); drawQrPopup(c); break;
-                case RECENT: if (recents != null) recents.draw(c, w, h); break;
-                default:
+                case MENU:
                     if (nowPlayingOpen) {
                         nowPlayingView.draw(c, w, h, playing != null ? playing.mediaInfo : null);
                     }
-                    drawToast(c);
+                    drawMenu(c);
+                    drawQrPopup(c);
                     break;
+                case RECENT: if (recents != null) recents.draw(c, w, h); break;
+                default: drawToast(c); break;
             }
             scene.setOffset(0, 0);
         }
@@ -1043,7 +1044,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
         settleWhileSliding();
         if (nowPlayingOpen && playing != null && playing.mediaInfo != null && playing.mediaInfo.isPlaying) {
-            toastLayer.invalidate();
+            menuLayer.invalidate();
             Choreographer.getInstance().postFrameCallback(this);
         }
         boolean tilesMoving = step(tileFocus, dt);
@@ -1072,8 +1073,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean bgFading = tickBackgroundFade(up);
         boolean nightMoving = tickNight(up);
         boolean menuMoving = menu.step(dt) | menuPick.step(dt);
-        if (menuMoving || nightMoving && menuOpen) menuLayer.invalidate();
-        else if (!menuOpen && !qrModalOpen && menuLayer.getVisibility() == VISIBLE) menuLayer.setVisibility(INVISIBLE);
+        if (nowPlayingOpen) {
+            if (menuLayer.getVisibility() != VISIBLE) menuLayer.setVisibility(VISIBLE);
+            menuLayer.invalidate();
+            Choreographer.getInstance().postFrameCallback(this);
+        } else {
+            if (menuMoving || nightMoving && menuOpen) menuLayer.invalidate();
+            else if (!menuOpen && !qrModalOpen && menuLayer.getVisibility() == VISIBLE) menuLayer.setVisibility(INVISIBLE);
+        }
         boolean recentMoving = recents != null && recents.step(dt);
         if (recents != null) {
             if (recents.visible() != (recentLayer.getVisibility() == VISIBLE)) recentLayer.setVisibility(recents.visible() ? VISIBLE : INVISIBLE);
@@ -1786,12 +1793,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Only a new title bounces the bars and is said to TalkBack: not a subtitle some players rewrite every second (the
         // time), and not the same title again when the screen shows.
         String title = playing.title, now = playing.text;
+        if (playing != null && playing.mediaInfo != null && playing.mediaInfo.isPlaying) {
+            String trackTitle = playing.mediaInfo.title;
+            if (trackTitle != null && !trackTitle.isEmpty() && !trackTitle.equals(shownTitle)) {
+                shownTitle = trackTitle;
+                nowPlayingOpen = true;
+                menuLayer.invalidate();
+                Choreographer.getInstance().postFrameCallback(this);
+            }
+        }
         if (title != null && now != null && running && playingTab != null && !title.equals(shownTitle)) {
             shownTitle = title;
             bounceBars();
-            nowPlayingOpen = true;
-            toastLayer.invalidate();
-            Choreographer.getInstance().postFrameCallback(this);
             if (readerOn()) announceForAccessibility(Ui.trf("Now playing: {what}", "what", now.replace(" · ", ", ")));
         }
     }
@@ -2489,7 +2502,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** All Apps from the remote's button. Coming back from another app, resume() opens it (it closes the sheet). */
     void showNowPlaying() {
         nowPlayingOpen = true;
-        toastLayer.invalidate();
+        menuLayer.setVisibility(VISIBLE);
+        menuLayer.invalidate();
         Choreographer.getInstance().postFrameCallback(this);
     }
 
@@ -2625,7 +2639,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private boolean tickToast(long up) {
         if (toast != null && up - toastAt > TOAST_MS) {
             toast = null;
-            toastLayer.invalidate();
+            menuLayer.invalidate();
         }
         if (toast == null && toastPaint != null) {
             String next = toasts.poll();
@@ -2637,7 +2651,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (toast == null) return false;
         long age = up - toastAt;
         boolean fading = age < 350 || age > TOAST_MS - 450;
-        if (fading) toastLayer.invalidate();
+        if (fading) menuLayer.invalidate();
         return fading;
     }
 
@@ -3133,7 +3147,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 int kc = e.getKeyCode();
                 if (kc == KeyEvent.KEYCODE_BACK) {
                     nowPlayingOpen = false;
-                    toastLayer.invalidate();
+                    if (!menuOpen && !qrModalOpen) menuLayer.setVisibility(INVISIBLE);
                     click.move();
                     return true;
                 }
