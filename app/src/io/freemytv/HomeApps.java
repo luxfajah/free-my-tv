@@ -91,6 +91,12 @@ final class HomeApps {
      * art's colors as they are. Last, a visual size tweak for the logo. Edit freely.
      */
     private static final String[][] SHELF = {
+        {"youtube", "YouTube", "com.youtube.armanych", "FF0033", "play", "1"},
+        {"stremio", "Stremio", "com.stremio.one", "7C3AED", "", "1"},
+        {"arcade", "Arcade", "com.magneticchen.daijishou", "FA5E31", "", "1"},
+        {"cineflix", "Cineflix", "com.mediaclient.android.cineflix", "F59E0B", "", "1"},
+        {"odeon", "Odeon VOD", "com.tv.odeon", "E11D48", "", "1"},
+        {"downloader", "Downloader", "com.esaba.downloader", "F97316", "", "1"},
         {"netflix", "Netflix", "com.netflix.ninja", "E50914", "", "1"},
         {"youtube", "YouTube", "com.google.android.youtube.tv", "FF0033", "play", "1"},
         {"youtube", "YouTube", "com.amazon.firetv.youtube", "FF0033", "play", "1"},
@@ -144,7 +150,7 @@ final class HomeApps {
     }
 
     /** Live TV apps of some brands (the antenna's channels open through the standard Android request first). */
-    static final String[] LIVE_TV_APPS = {"com.tcl.tv", "com.google.android.tv", "com.mediatek.wwtv.tvcenter", "com.sony.dtv.tvx",
+    static final String[] LIVE_TV_APPS = {"com.live.evo", "com.mm.droid.livetv", "com.droid.stbbtvapp", "com.tcl.tv", "com.google.android.tv", "com.mediatek.wwtv.tvcenter", "com.sony.dtv.tvx",
             "com.smartdevice.livetv", "com.mediatek.tv.oneworld.tvcenter", "com.amazon.tv.livetv", "com.amazon.mediatek.livetv"};
     /** Kept out of "All Apps" (only hidden, still installed). Add the ones your TV shows that you never use. */
     private static final Set<String> HIDDEN = new HashSet<>(java.util.Arrays.asList(
@@ -218,7 +224,16 @@ final class HomeApps {
     /** The shelf's packages in order: the user's list (Settings > Shelf), or the built-in one. */
     static List<String> shelfPackages(Context c) {
         List<String> custom = Prefs.shelf();
-        if (custom != null) return custom;
+        if (custom != null) {
+            List<String> filtered = new ArrayList<>(custom);
+            filtered.remove("com.live.evo");
+            filtered.remove("com.mm.droid.livetv");
+            filtered.remove("com.droid.stbbtvapp");
+            if (!filtered.contains("com.magneticchen.daijishou") && launchIntent(c.getPackageManager(), "com.magneticchen.daijishou") != null) {
+                filtered.add(Math.min(2, filtered.size()), "com.magneticchen.daijishou");
+            }
+            return filtered;
+        }
         List<String> out = new ArrayList<>();
         Set<String> keys = new HashSet<>();
         PackageManager pm = c.getPackageManager();

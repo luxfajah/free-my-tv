@@ -326,6 +326,8 @@ final class Recs {
 
     /** This hour's Prefs.cards(), movies only ("movie") or shows only ("tv"); null = both (the home screen tabs). */
     List<Pick> now(String kind) {
+        if ("anime".equals(kind)) { if (animePicks.isEmpty()) refreshExtras(); return animePicks; }
+        if ("continue".equals(kind)) { if (stremioPicks.isEmpty()) refreshExtras(); return stremioPicks; }
         List<Pick> out = new ArrayList<>();
         if (!hasKey(context)) return out;    // no TMDB key: no recommendations
         List<Pick> progress = new ArrayList<>(), liked = new ArrayList<>(), list = new ArrayList<>();
@@ -402,7 +404,14 @@ final class Recs {
     }
 
     private File imageFile(Pick p) {
-        return new File(new File(context.getCacheDir(), "recs"), p.backdrop.replace("/", ""));
+        String name = p.backdrop == null ? "img" : p.backdrop.replaceAll("[^a-zA-Z0-9_-]", "");
+        return new File(new File(context.getCacheDir(), "recs"), name);
+    }
+
+    private File posterFile(Pick p) {
+        if (p.poster == null || p.poster.isEmpty()) return null;
+        String name = p.poster.replaceAll("[^a-zA-Z0-9_-]", "");
+        return new File(new File(context.getCacheDir(), "recs"), "p" + name);
     }
 
     /** With a key: fetches the list if stale or the time of day (morning/afternoon/night) changed; then the details. */
@@ -852,8 +861,8 @@ final class Recs {
         if (p.tag != null) parts.add(0, p.tag);
         JSONObject ext = o.optJSONObject("external_ids");
         String imdb = ext == null ? "" : ext.optString("imdb_id", "");
-        if (p.app != null && stremio() && imdb.startsWith("tt")) {     // the meta still names the TV's app it's on
-            p.servicePkg = p.pkg;   // its switch in Picks from (and the app itself) still decide whether it shows
+        if (stremio() && imdb.startsWith("tt")) {
+            p.servicePkg = p.pkg != null ? p.pkg : STREMIO;
             p.app = "stremio";
             p.pkg = STREMIO;
             p.link = "stremio:///detail/" + (p.kind.equals("movie") ? "movie" : "series") + "/" + imdb;
@@ -937,8 +946,11 @@ final class Recs {
     static List<String[]> installedServices(Context c) {
         List<String[]> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+        boolean hasStremio = Config.OPEN_IN_STREMIO && HomeApps.launchIntent(c.getPackageManager(), STREMIO) != null;
         for (String[] s : SERVICES) {
-            if (HomeApps.launchIntent(c.getPackageManager(), s[2]) != null && seen.add(s[1])) out.add(new String[] {s[1], SERVICE_NAME.get(s[1])});
+            if ((hasStremio || HomeApps.launchIntent(c.getPackageManager(), s[2]) != null) && seen.add(s[1])) {
+                out.add(new String[] {s[1], SERVICE_NAME.get(s[1])});
+            }
         }
         return out;
     }
@@ -949,6 +961,7 @@ final class Recs {
      */
     private boolean installed(String pkg) {
         for (String[] s : SERVICES) if (s[2].equals(pkg) && Prefs.serviceOff(s[1])) return false;
+        if (stremio()) return true;
         return HomeApps.launchIntent(context.getPackageManager(), pkg) != null;
     }
 
@@ -1140,27 +1153,144 @@ final class Recs {
         return out.size() > 8 ? out.subList(0, 8) : out;
     }
 
+    
+        private static final String STREMIO_AUTH = "6Ka6AOE766tW2Ck1ZyoRVd4loqXtTSFA1VcoBsAwbYU=";
+    private volatile List<Pick> animePicks = new ArrayList<>(), stremioPicks = new ArrayList<>();
+    private volatile long extrasAt = 0;
+    private volatile boolean extrasFetching = false;
+
+    /** Animes (TMDB) and Stremio's Continue Watching, refreshed in the background. */
+    void refreshExtras() {
+        long now = System.currentTimeMillis();
+        if (extrasFetching) return;
+        boolean empty = animePicks.isEmpty() || stremioPicks.isEmpty();
+        if (now - extrasAt < (empty ? 60_000L : 10 * 60_000L)) return;
+        extrasFetching = true;
+        extrasAt = now;
+        io.execute(() -> {
+            try { animePicks = fetchAnime(); } catch (Exception e) { AppLog.w("anime: " + e.getMessage()); }
+            try { stremioPicks = fetchStremio(); } catch (Exception e) { AppLog.w("stremio: " + e.getMessage()); }
+            extrasFetching = false;
+            notifyListeners();
+        });
+    }
+
+    private List<Pick> fetchAnime() throws Exception {
+        JSONArray arr = get("/discover/tv?with_genres=16&with_original_language=ja&sort_by=popularity.desc&language=" + lang()).getJSONArray("results");
+        List<Pick> out = new ArrayList<>();
+        for (int i = 0; i < arr.length() && out.size() < MAX_CARDS; i++) {
+            JSONObject o = arr.getJSONObject(i);
+            String bd = o.optString("backdrop_path", "");
+            if (bd.isEmpty() || "null".equals(bd)) continue;
+            Pick p = new Pick();
+            p.kind = "anime";
+            p.id = o.getInt("id");
+            p.title = o.optString("name", o.optString("original_name", ""));
+            p.backdrop = bd;
+            String po = o.optString("poster_path", "");
+            p.poster = po.isEmpty() || "null".equals(po) ? null : po;
+            String year = o.optString("first_air_date", "");
+            p.meta = "Anime" + (year.length() >= 4 ? " \u00b7 " + year.substring(0, 4) : "");
+            p.pkg = "com.stremio.one";
+            p.link = "stremio:///search?search=" + URLEncoder.encode(p.title, "UTF-8");
+            p.detailed = true;
+            out.add(p);
+        }
+        return out;
+    }
+
+    private List<Pick> fetchStremio() throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL("https://api.strem.io/api/datastoreGet").openConnection();
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(15000);
+        c.setRequestMethod("POST");
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", "application/json");
+        JSONObject body = new JSONObject().put("authKey", STREMIO_AUTH).put("collection", "libraryItem").put("all", true);
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try {
+            try (java.io.OutputStream os = c.getOutputStream()) { os.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
+            try (InputStream in = c.getInputStream()) {
+                byte[] b = new byte[16384];
+                int n;
+                while ((n = in.read(b)) > 0) bos.write(b, 0, n);
+            }
+        } finally {
+            c.disconnect();
+        }
+        JSONArray arr = new JSONObject(bos.toString("UTF-8")).getJSONArray("result");
+        List<JSONObject> items = new ArrayList<>();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.getJSONObject(i);
+            JSONObject s = o.optJSONObject("state");
+            if (s == null) continue;
+            long off = s.optLong("timeOffset", 0), dur = s.optLong("duration", 0);
+            if (off <= 0 || dur <= 0 || off > dur * 0.95) continue;
+            items.add(o);
+        }
+        java.util.Collections.sort(items, (a, b) -> b.optJSONObject("state").optString("lastWatched", "")
+                .compareTo(a.optJSONObject("state").optString("lastWatched", "")));
+        List<Pick> out = new ArrayList<>();
+        for (JSONObject o : items) {
+            if (out.size() >= MAX_CARDS) break;
+            JSONObject s = o.optJSONObject("state");
+            String id = o.optString("_id", ""), type = o.optString("type", "movie");
+            if (id.isEmpty()) continue;
+            Pick p = new Pick();
+            p.kind = "continue";
+            p.id = id.hashCode() & 0x7fffffff;
+            p.title = o.optString("name", "");
+            String poster = o.optString("poster", "");
+            String bg = o.optString("background", "");
+            if (bg.isEmpty() && id.startsWith("tt")) bg = "https://images.metahub.space/background/medium/" + id + "/img";
+            if (bg.isEmpty()) bg = poster;
+            if (bg.isEmpty()) continue;
+            p.backdrop = bg;
+            p.poster = poster.isEmpty() ? null : poster;
+            long off = s.optLong("timeOffset", 0), dur = s.optLong("duration", 1);
+            int pct = (int) (off * 100 / Math.max(1, dur));
+            String vid = s.optString("video_id", "");
+            String[] parts = vid.split(":");
+            String ep = "series".equals(type) && parts.length >= 3 ? "T" + parts[parts.length - 2] + " E" + parts[parts.length - 1] + " \u00b7 " : "";
+            long left = Math.max(0, (dur - off) / 60000);
+            p.meta = ep + pct + "% \u00b7 faltam " + left + " min";
+            p.pkg = "com.stremio.one";
+            p.link = "stremio:///detail/" + type + "/" + id + (vid.isEmpty() ? "" : "/" + vid);
+            p.detailed = true;
+            out.add(p);
+        }
+        return out;
+    }
+
     // MARK: - Images (TMDB originals on disk, up to 24 so the whole list fits; this hour's kept ready in memory)
 
     private void download(Pick p) throws IOException {
         File f = imageFile(p);
-        if (!f.exists()) fetchFile(f, p.id < 0
-                ? plexOpen("/photo/:/transcode?width=1920&height=1080&minSize=1&url=" + URLEncoder.encode(p.backdrop, "UTF-8"))
-                : (HttpURLConnection) new URL(IMAGES + p.backdrop).openConnection());
+        if (!f.exists()) {
+            if (p.backdrop != null && (p.backdrop.startsWith("http://") || p.backdrop.startsWith("https://"))) {
+                fetchFile(f, (HttpURLConnection) new URL(p.backdrop).openConnection());
+            } else {
+                fetchFile(f, p.id < 0
+                        ? plexOpen("/photo/:/transcode?width=1920&height=1080&minSize=1&url=" + URLEncoder.encode(p.backdrop, "UTF-8"))
+                        : (HttpURLConnection) new URL(IMAGES + p.backdrop).openConnection());
+            }
+        }
         File poster = posterFile(p);
         if (poster == null || poster.exists()) return;
-        try {   // the narrow cards: without a poster they crop the backdrop
-            fetchFile(poster, p.id < 0
-                    ? plexOpen("/photo/:/transcode?width=500&height=750&minSize=1&url=" + URLEncoder.encode(p.poster, "UTF-8"))
-                    : (HttpURLConnection) new URL(POSTERS + p.poster).openConnection());
+        try {
+            if (p.poster != null && (p.poster.startsWith("http://") || p.poster.startsWith("https://"))) {
+                fetchFile(poster, (HttpURLConnection) new URL(p.poster).openConnection());
+            } else {
+                fetchFile(poster, p.id < 0
+                        ? plexOpen("/photo/:/transcode?width=500&height=750&minSize=1&url=" + URLEncoder.encode(p.poster, "UTF-8"))
+                        : (HttpURLConnection) new URL(POSTERS + p.poster).openConnection());
+            }
         } catch (IOException e) {
             AppLog.w("poster: " + e.getMessage());
         }
     }
 
-    private File posterFile(Pick p) {
-        return p.poster == null || p.poster.isEmpty() ? null : new File(new File(context.getCacheDir(), "recs"), "p" + p.poster.replace("/", ""));
-    }
+
 
     private void fetchFile(File f, HttpURLConnection c) throws IOException {
         //noinspection ResultOfMethodCallIgnored

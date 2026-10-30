@@ -221,9 +221,18 @@ final class Prefs {
 
     // MARK: - City
 
-    static String city() { return sp().getString("city", Place.city()).trim(); }
-    static String latitude() { return sp().getString("latitude", Place.latitude()); }
-    static String longitude() { return sp().getString("longitude", Place.longitude()); }
+    static String city() {
+        if (!Place.fromZone() && !Config.CITY.trim().isEmpty()) return Config.CITY.trim();
+        return sp().getString("city", Place.city()).trim();
+    }
+    static String latitude() {
+        if (!Place.fromZone()) return Config.LATITUDE.trim();
+        return sp().getString("latitude", Place.latitude());
+    }
+    static String longitude() {
+        if (!Place.fromZone()) return Config.LONGITUDE.trim();
+        return sp().getString("longitude", Place.longitude());
+    }
 
     static void setCity(String name, String latitude, String longitude) {
         sp().edit().putString("city", name).putString("latitude", latitude).putString("longitude", longitude).apply();

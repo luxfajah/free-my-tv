@@ -67,16 +67,34 @@ final class Adb implements Closeable {
         out = socket.getOutputStream();
     }
 
+    private static int cachedPort = 0;
+
+    private static Socket openSocket() throws IOException {
+        if (cachedPort > 0) {
+            try {
+                Socket s = new Socket();
+                s.connect(new InetSocketAddress("127.0.0.1", cachedPort), 1500);
+                return s;
+            } catch (IOException ignored) {
+                cachedPort = 0;
+            }
+        }
+        int[] ports = {5555, 5188};
+        for (int p : ports) {
+            try {
+                Socket s = new Socket();
+                s.connect(new InetSocketAddress("127.0.0.1", p), 1500);
+                cachedPort = p;
+                return s;
+            } catch (IOException ignored) {}
+        }
+        throw new IOException(Ui.tr("debugging is off on the TV (port 5555/5188 closed)"));
+    }
+
     /** Connects and authenticates. If the TV doesn't know our key yet, waits up to `approvalMs` for you to accept. */
     static Adb connect(Context c, int approvalMs, Approval approval) throws IOException {
         KeyPair keys = keys(c);
-        Socket s = new Socket();
-        try {
-            s.connect(new InetSocketAddress("127.0.0.1", 5555), 3000);
-        } catch (IOException e) {
-            s.close();
-            throw new IOException(Ui.tr("debugging is off on the TV (port 5555 closed)"));
-        }
+        Socket s = openSocket();
         Adb adb;
         try {
             s.setSoTimeout(10_000);
@@ -140,9 +158,9 @@ final class Adb implements Closeable {
 
     /** A new connection that only signs (it never offers the key, so no second prompt); null while the TV doesn't know it. */
     private static Adb signedIn(KeyPair keys) {
-        Socket s = new Socket();
+        Socket s = null;
         try {
-            s.connect(new InetSocketAddress("127.0.0.1", 5555), 3000);
+            s = openSocket();
             s.setSoTimeout(5000);
             Adb adb = new Adb(s);
             adb.send(CNXN, VERSION, MAX_DATA, "host::\0".getBytes(StandardCharsets.US_ASCII));
@@ -157,7 +175,7 @@ final class Adb implements Closeable {
             }
         } catch (IOException | RuntimeException ignored) {
         }
-        try { s.close(); } catch (IOException ignored) {}
+        if (s != null) try { s.close(); } catch (IOException ignored) {}
         return null;
     }
 

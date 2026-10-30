@@ -47,7 +47,9 @@ final class WatchNext {
             picture = thumbnail != null ? thumbnail : poster;
             Uri uri = picture == null ? null : Uri.parse(picture);
             pictureUri = uri != null && ("content".equalsIgnoreCase(uri.getScheme())
-                    || "android.resource".equalsIgnoreCase(uri.getScheme())) ? uri : null;
+                    || "android.resource".equalsIgnoreCase(uri.getScheme())
+                    || "https".equalsIgnoreCase(uri.getScheme())
+                    || "http".equalsIgnoreCase(uri.getScheme())) ? uri : null;
             pictureKey = pictureUri == null ? null : picture;
             bannerKey = "banner:" + pkg;
         }
@@ -70,6 +72,7 @@ final class WatchNext {
     }
 
     static boolean allowed(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return true;
         return c.checkSelfPermission(PERMISSION) == PackageManager.PERMISSION_GRANTED;
     }
 
