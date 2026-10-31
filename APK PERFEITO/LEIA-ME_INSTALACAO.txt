@@ -1,0 +1,43 @@
+====================================================================
+  FreeMyTV - Versão Estável Perfeita (BTV 11 Edition)
+====================================================================
+
+Esta pasta contém o APK idêntico e oficial que está instalado e rodando
+perfeitamente na sua BTV Box.
+
+Destaques desta Versão:
+--------------------------------------------------------------------
+1. Layout do "Continuar Assistindo" idêntico ao "Explorar":
+   - Cards com física fluida de expansão dinâmica.
+   - Ao focar no card, ele expande suavemente no formato Wide/Hero
+     mostrando o backdrop em alta definição.
+   - Cards não focados permanecem no formato vertical Tall/Poster.
+   - Barra de progresso vermelha na borda inferior do card.
+   - Textos e informações contextuais (Temporada/Episódio, % assistido,
+     tempo restante).
+
+2. Navegação Vertical em 2 Camadas:
+   - Destaques (Topo) <---> Continuar Assistindo <---> Dock de Apps (Rodapé)
+   - 4 Abas fixas no topo: [ Explorar ] [ Filmes ] [ Séries ] [ Animes ]
+   - Dock de aplicativos de vidro sempre visível e sem cortes.
+
+3. Controle Remoto Virtual Completo (Web):
+   - Acesso pelo navegador do celular: http://192.168.1.6:8090/
+   - QR Code de pareamento automático na tela inicial e no botão do topo.
+   - Controle total do sistema (BTV) via SystemRemoteDaemon na porta 8099.
+   - Retorno tátil de clique realista para iPhone (iOS Safari) e vibração Android.
+
+4. Motor de Recomendação Inteligente (MAB):
+   - Algoritmo Multi-Armed Bandit com aprendizado on-device.
+   - Intercalação Round-Robin circular entre os 7 Universos Semânticos.
+
+--------------------------------------------------------------------
+Como Instalar em 1 Clique (BTV conectada na mesma rede Wi-Fi):
+--------------------------------------------------------------------
+Basta dar 2 cliques no arquivo:
+   INSTALAR_NA_BTV.bat
+
+Ou pelo terminal:
+   adb connect 192.168.1.6:5188
+   adb install -r FreeMyTV_PERFEITO_ESTAVEL.apk
+====================================================================

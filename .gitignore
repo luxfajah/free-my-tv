@@ -30,3 +30,5 @@ screen_*.png
 filmes_preferencias.html
 restore_continue_tab.py
 test_engine.ts
+archive/
+!APK PERFEITO/*.apk
