@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No auto-update: upstream manifests point to the official SmartTube package and signature.
+         New versions are published on the GitHub Releases page of this fork. -->
+    <string-array name="update_urls" />
+</resources>

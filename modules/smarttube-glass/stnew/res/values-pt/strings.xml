@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nova_live">AO VIVO</string>
+    <string name="nova_upcoming">EM BREVE</string>
+    <string name="nova_loading">Carregando…</string>
+    <string name="nova_search">Buscar</string>
+    <string name="nova_library">Biblioteca</string>
+    <string name="nova_play_now">Assistir</string>
+</resources>

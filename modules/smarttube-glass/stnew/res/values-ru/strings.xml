@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nova_live">В ЭФИРЕ</string>
+    <string name="nova_upcoming">СКОРО</string>
+    <string name="nova_loading">Загрузка…</string>
+    <string name="nova_search">Поиск</string>
+</resources>

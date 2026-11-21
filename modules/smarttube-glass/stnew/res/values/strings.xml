@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string translatable="false" name="app_name"><![CDATA[SmartTube Glass]]></string>
+    <string translatable="false" name="browse_title"><![CDATA[SmartTube Glass]]></string>
+    <string name="nova_live">LIVE</string>
+    <string name="nova_upcoming">UPCOMING</string>
+    <string name="nova_loading">Loading…</string>
+    <string name="nova_search">Search</string>
+    <string name="nova_library">Library</string>
+    <string name="nova_play_now">Watch now</string>
+</resources>

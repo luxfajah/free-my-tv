@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Новая главная на Compose (см. MainApplication: подменяет BrowseActivity в этом варианте). -->
+        <activity
+            android:name="io.github.margantcovka.tube.NovaBrowseActivity"
+            android:launchMode="singleInstance"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection"
+            android:screenOrientation="unspecified" />
+        <!-- Канал на Compose (см. MainApplication: подменяет ChannelActivity в этом варианте). -->
+        <activity
+            android:name="io.github.margantcovka.tube.NovaChannelActivity"
+            android:launchMode="singleInstance"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection"
+            android:screenOrientation="unspecified" />
+        <!-- Плеер с панелью на Compose (см. MainApplication: подменяет PlaybackActivity в этом варианте). -->
+        <activity
+            android:name="io.github.margantcovka.tube.NovaPlaybackActivity"
+            android:launchMode="singleInstance"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|layoutDirection"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:screenOrientation="unspecified"
+            android:showWhenLocked="true"
+            android:theme="@style/App.Theme.Leanback.Player" />
+    </application>
+</manifest>

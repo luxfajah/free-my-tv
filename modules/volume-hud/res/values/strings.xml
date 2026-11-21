@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Liquid Glass Volume</string>
+    <string name="service_label">Apple Liquid Glass Volume HUD</string>
+    <string name="service_description">Substitui a barra de volume padrão do Android pela barra vertical Apple Liquid Glass (iOS 26 / iOS 27) sem precisar de root.</string>
+</resources>

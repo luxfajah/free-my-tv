@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- stnew: подсказки кнопок плеера в цветах лаунчера. -->
+<resources>
+    <color name="tooltip_background_dark_mod">#F21C1C1E</color>
+</resources>

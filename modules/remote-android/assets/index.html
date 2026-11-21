@@ -1,0 +1,2595 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>HY300 Remote</title>
+<style>
+  :root {
+    --bg: #0A0B0E;
+    --bg-ambient: #12141B;
+    --surface-top: #1A1B21;
+    --surface-bottom: #121318;
+    --btn-top: #282A33;
+    --btn-bottom: #1D1F26;
+    --btn-pressed: #383B48;
+    --ring-outer-top: #24262F;
+    --ring-outer-bottom: #181A21;
+    --ring-center-top: #16181E;
+    --ring-center-bottom: #101116;
+    --rim: rgba(255,255,255,0.12);
+    --rim-subtle: rgba(255,255,255,0.06);
+    --rim-bright: rgba(255,255,255,0.22);
+    --text-primary: rgba(255,255,255,0.94);
+    --text-secondary: rgba(255,255,255,0.62);
+    --text-tertiary: rgba(255,255,255,0.36);
+    --status-awake: #38DB75;
+    --status-standby: #FAAD2E;
+    --status-offline: #F04D52;
+    --accent-blue: #61ADFF;
+    --accent-orange: #FF9F0A;
+    --btn-size: 64px;
+    --row-gap: 14px;
+    --col-gap: 24px;
+    --section-gap: 14px;
+    --pad-x: 22px;
+  }
+
+  @media (max-height: 700px), (max-width: 370px) {
+    :root {
+      --btn-size: 56px;
+      --row-gap: 11px;
+      --col-gap: 18px;
+      --section-gap: 10px;
+      --pad-x: 18px;
+    }
+  }
+
+  @media (min-height: 830px) and (min-width: 400px) {
+    :root {
+      --btn-size: 70px;
+      --row-gap: 16px;
+      --col-gap: 28px;
+      --section-gap: 18px;
+      --pad-x: 26px;
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    background: radial-gradient(120% 70% at 50% 0%, var(--bg-ambient) 0%, var(--bg) 58%);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) var(--pad-x) calc(12px + env(safe-area-inset-bottom, 0px));
+    gap: var(--section-gap);
+    touch-action: none;
+  }
+
+  /* --- Top Bar --- */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .icon-pill-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(44,47,58,0.88), rgba(26,28,35,0.92));
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.12s ease;
+    padding: 0;
+  }
+
+  .icon-pill-btn:active, .icon-pill-btn.pressed {
+    transform: scale(0.92);
+    background: var(--btn-pressed);
+  }
+
+  .icon-pill-btn.power-off {
+    color: var(--status-offline);
+    border-color: rgba(240, 77, 82, 0.35);
+  }
+
+  .device-pill {
+    flex: 1;
+    max-width: 230px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(36,38,47,0.86), rgba(22,24,30,0.94));
+    box-shadow: 0 6px 18px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.1s ease, border-color 0.15s ease;
+    min-width: 0;
+  }
+
+  .device-pill:active {
+    transform: scale(0.96);
+    border-color: var(--rim-bright);
+  }
+
+  .status-led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--status-offline);
+    box-shadow: 0 0 8px var(--status-offline);
+    transition: background 0.25s, box-shadow 0.25s;
+  }
+
+  .status-led.awake {
+    background: var(--status-awake);
+    box-shadow: 0 0 10px rgba(56,219,117,0.7);
+    animation: pulse-led 2.6s ease-in-out infinite;
+  }
+
+  .status-led.standby {
+    background: var(--status-standby);
+    box-shadow: 0 0 10px rgba(250,173,46,0.7);
+  }
+
+  .status-led.connecting {
+    background: var(--status-standby);
+    box-shadow: 0 0 8px rgba(250,173,46,0.7);
+    animation: blink-led 0.9s ease-in-out infinite;
+  }
+
+  @keyframes pulse-led {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(0.92); }
+  }
+
+  @keyframes blink-led {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .transport-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .transport-badge.bt {
+    color: var(--accent-blue);
+  }
+
+  .device-name {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chevron-down {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+  }
+
+  .ota-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #479EFF;
+    box-shadow: 0 0 8px rgba(71, 158, 255, 0.85);
+    flex-shrink: 0;
+    display: none;
+  }
+
+  .ota-dot.show {
+    display: inline-block;
+  }
+
+  .ota-progress-wrap {
+    width: 100%;
+    height: 6px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.1);
+    overflow: hidden;
+    display: none;
+  }
+
+  .ota-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #2D7FF9, #61ADFF);
+    transition: width 0.16s ease;
+  }
+
+  .ota-notes {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-line;
+  }
+
+  /* --- Touchpad / Clickpad Stage --- */
+  .pad-stage {
+    position: relative;
+    flex: 1;
+    min-height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .touchpad {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 34px;
+    background: linear-gradient(180deg, var(--surface-top) 0%, var(--surface-bottom) 100%);
+    border: 1px solid var(--rim);
+    box-shadow:
+      0 18px 40px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.14),
+      inset 0 -1px 0 rgba(0,0,0,0.45);
+    overflow: hidden;
+    touch-action: none;
+    transition: transform 0.12s ease, border-color 0.15s ease;
+  }
+
+  .touchpad.pressing {
+    border-color: var(--rim-bright);
+  }
+
+  .touchpad-glow {
+    position: absolute;
+    width: 190px;
+    height: 190px;
+    border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 45%, transparent 72%);
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  .touchpad-glow.visible {
+    opacity: 1;
+  }
+
+  .pad-chevron {
+    position: absolute;
+    color: rgba(255,255,255,0.14);
+    pointer-events: none;
+    transition: color 0.12s ease, transform 0.12s ease;
+  }
+
+  .pad-chevron.up    { top: 14px; left: 50%; transform: translateX(-50%); }
+  .pad-chevron.down  { bottom: 14px; left: 50%; transform: translateX(-50%); }
+  .pad-chevron.left  { left: 14px; top: 50%; transform: translateY(-50%); }
+  .pad-chevron.right { right: 14px; top: 50%; transform: translateY(-50%); }
+
+  .pad-chevron.flash {
+    color: rgba(255,255,255,0.78);
+  }
+
+  .pad-center-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* Clickpad Ring Mode */
+  .clickpad-wrap {
+    display: none;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .clickpad-ring {
+    position: relative;
+    width: min(76vw, 248px);
+    height: min(76vw, 248px);
+    max-height: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--ring-outer-top) 0%, var(--ring-outer-bottom) 100%);
+    border: 1px solid var(--rim);
+    box-shadow:
+      0 18px 36px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.16),
+      inset 0 -2px 6px rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  .ring-dir {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.1s, transform 0.1s, background 0.1s;
+    padding: 0;
+  }
+
+  .ring-dir.up    { top: 8px; left: 50%; transform: translateX(-50%); }
+  .ring-dir.down  { bottom: 8px; left: 50%; transform: translateX(-50%); }
+  .ring-dir.left  { left: 8px; top: 50%; transform: translateY(-50%); }
+  .ring-dir.right { right: 8px; top: 50%; transform: translateY(-50%); }
+
+  .ring-dir.pressed {
+    color: #FFFFFF;
+    background: rgba(255,255,255,0.10);
+  }
+
+  .ring-ok {
+    width: 44%;
+    height: 44%;
+    border-radius: 50%;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, var(--ring-center-top) 0%, var(--ring-center-bottom) 100%);
+    box-shadow:
+      0 4px 12px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.1);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.1s ease;
+  }
+
+  .ring-ok.pressed {
+    transform: scale(0.94);
+    background: var(--btn-pressed);
+  }
+
+  /* Transient HUD Pill */
+  .hud-pill {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px) scale(0.95);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(20, 22, 29, 0.9);
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.55);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    transition: opacity 0.18s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    max-width: 90%;
+  }
+
+  .hud-pill.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .hud-icon {
+    display: inline-flex;
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+
+  .hud-text {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .hud-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .hud-bar-wrap {
+    width: 66px;
+    height: 5px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.16);
+    overflow: hidden;
+    display: none;
+  }
+
+  .hud-bar-fill {
+    height: 100%;
+    width: 50%;
+    border-radius: 99px;
+    background: #FFFFFF;
+    transition: width 0.08s ease;
+  }
+
+  /* --- Apple TV Asymmetric Button Deck --- */
+  .deck {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--row-gap);
+    flex-shrink: 0;
+  }
+
+  .deck-row-top {
+    display: grid;
+    grid-template-columns: repeat(3, var(--btn-size));
+    gap: var(--col-gap);
+    justify-content: center;
+  }
+
+  .deck-grid-lower {
+    display: grid;
+    grid-template-columns: repeat(3, var(--btn-size));
+    grid-template-rows: repeat(2, var(--btn-size));
+    column-gap: var(--col-gap);
+    row-gap: var(--row-gap);
+    justify-content: center;
+  }
+
+  .tactile-btn {
+    width: var(--btn-size);
+    height: var(--btn-size);
+    border-radius: 50%;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, var(--btn-top) 0%, var(--btn-bottom) 100%);
+    box-shadow:
+      0 8px 18px rgba(0,0,0,0.48),
+      inset 0 1px 0 rgba(255,255,255,0.14);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.09s ease, background 0.1s ease, border-color 0.12s ease;
+    touch-action: none;
+  }
+
+  .tactile-btn.pressed {
+    transform: scale(0.92);
+    background: var(--btn-pressed);
+    border-color: var(--rim-bright);
+  }
+
+  .tactile-btn.active-danger {
+    color: var(--status-offline);
+    border-color: rgba(240, 77, 82, 0.55);
+    background: linear-gradient(180deg, rgba(240, 77, 82, 0.24), rgba(240, 77, 82, 0.12));
+    box-shadow: 0 6px 18px rgba(240, 77, 82, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+
+  /* Tall Vertical Volume Rocker Pill */
+  .vol-rocker {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    width: var(--btn-size);
+    height: calc(var(--btn-size) * 2 + var(--row-gap));
+    border-radius: 999px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, var(--btn-top) 0%, var(--btn-bottom) 100%);
+    box-shadow:
+      0 10px 22px rgba(0,0,0,0.52),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .vol-half {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.1s ease;
+    touch-action: none;
+  }
+
+  .vol-half.pressed {
+    background: rgba(255,255,255,0.14);
+  }
+
+  .vol-divider {
+    height: 1px;
+    margin: 0 14px;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+
+  /* --- Bottom Compact Bar --- */
+  .bottom-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    height: 42px;
+    flex-shrink: 0;
+  }
+
+  .bottom-pill {
+    border-radius: 999px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(36,38,47,0.84), rgba(22,24,30,0.92));
+    box-shadow: 0 4px 12px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.1);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 0 10px;
+    transition: transform 0.1s ease, background 0.12s ease;
+  }
+
+  .bottom-pill:active {
+    transform: scale(0.95);
+    background: var(--btn-pressed);
+  }
+
+  /* --- Modal Sheets & Overlays --- */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.66);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .sheet-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sheet {
+    width: 100%;
+    max-width: 480px;
+    max-height: 86dvh;
+    background: #101217;
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    border-top: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 -16px 48px rgba(0,0,0,0.75);
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.25, 1);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .sheet-backdrop.open .sheet {
+    transform: translateY(0);
+  }
+
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+  }
+
+  .sheet-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .sheet-close {
+    border: none;
+    background: rgba(255,255,255,0.09);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .sheet-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px 18px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    touch-action: pan-y;
+  }
+
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+  }
+
+  .section-action {
+    border: none;
+    background: transparent;
+    color: var(--accent-blue);
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+
+  .glass-card {
+    background: linear-gradient(180deg, rgba(32,35,44,0.85), rgba(21,23,30,0.92));
+    border: 1px solid var(--rim);
+    border-radius: 20px;
+    padding: 14px;
+  }
+
+  /* Kill Background Apps Card */
+  .kill-bg-card {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    width: 100%;
+    text-align: left;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.1s ease, border-color 0.15s ease;
+  }
+
+  .kill-bg-card:active {
+    transform: scale(0.98);
+    border-color: rgba(255,159,10,0.45);
+  }
+
+  .kill-bg-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: rgba(255,159,10,0.18);
+    color: var(--accent-orange);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* 3-Column Dock Apps Grid */
+  .dock-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 11px;
+  }
+
+  .dock-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 6px;
+    border-radius: 20px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(34,37,46,0.82), rgba(22,24,31,0.9));
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .dock-tile:active {
+    transform: scale(0.94);
+  }
+
+  .dock-icon-box {
+    width: 56px;
+    height: 56px;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  .dock-icon-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .dock-label {
+    font-size: 12px;
+    font-weight: 600;
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Shortcuts 2-Column Grid */
+  .shortcut-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .shortcut-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(32,35,44,0.8), rgba(21,23,30,0.9));
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .shortcut-tile:active {
+    transform: scale(0.96);
+  }
+
+  .shortcut-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .shortcut-title {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .shortcut-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  /* Telemetry Grid */
+  .telemetry-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 9px;
+    margin-top: 12px;
+  }
+
+  .telemetry-cell {
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .telemetry-k {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 2px;
+  }
+
+  .telemetry-v {
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Device List Rows */
+  .device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .device-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 18px;
+    border: 1px solid var(--rim);
+    background: linear-gradient(180deg, rgba(32,35,44,0.82), rgba(21,23,30,0.9));
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .device-row:active {
+    transform: scale(0.98);
+  }
+
+  .empty-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--rim-subtle);
+    background: rgba(255,255,255,0.03);
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .ip-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .text-input {
+    flex: 1;
+    height: 44px;
+    border-radius: 14px;
+    border: 1px solid var(--rim);
+    background: rgba(255,255,255,0.06);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-weight: 500;
+    padding: 0 14px;
+    outline: none;
+    font-variant-numeric: tabular-nums;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .text-input:focus {
+    border-color: var(--accent-blue);
+  }
+
+  .primary-btn {
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 14px;
+    border: none;
+    background: #2D7FF9;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .primary-btn:active {
+    opacity: 0.85;
+  }
+
+  .orange-btn {
+    background: linear-gradient(180deg, #FF9F0A, #E07D00);
+    color: #0A0B0E;
+    font-weight: 700;
+  }
+
+  .secondary-btn {
+    background: rgba(255,255,255,0.1);
+    color: var(--text-primary);
+    border: 1px solid var(--rim);
+  }
+
+  /* Floating Live Keyboard Overlay */
+  .kb-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.62);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    padding: calc(18px + env(safe-area-inset-top, 0px)) 16px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .kb-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .kb-card {
+    width: 100%;
+    max-width: 440px;
+    border-radius: 26px;
+    background: linear-gradient(180deg, rgba(30,33,42,0.96), rgba(18,20,27,0.98));
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transform: translateY(-12px) scale(0.97);
+    transition: transform 0.2s cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+
+  .kb-backdrop.open .kb-card {
+    transform: translateY(0) scale(1);
+  }
+
+  .kb-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .kb-pill {
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--rim);
+    background: rgba(255,255,255,0.08);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .kb-pill:active {
+    background: rgba(255,255,255,0.18);
+  }
+
+  /* Range Slider */
+  input[type="range"].vol-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.16);
+    outline: none;
+  }
+
+  input[type="range"].vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    cursor: pointer;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #FFFFFF;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <button class="icon-pill-btn" id="btnKeyboard" aria-label="Teclado ao Vivo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="3"/>
+        <path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M10 13h.01M14 13h.01M18 13h.01M8 16h8"/>
+      </svg>
+    </button>
+
+    <button class="device-pill" id="btnDevicePicker" aria-label="Selecionar Projetor">
+      <span class="status-led" id="topLed"></span>
+      <span class="transport-badge" id="topTransportIcon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/>
+        </svg>
+      </span>
+      <span class="device-name" id="topDeviceName">HY300Pro</span>
+      <span class="ota-dot" id="topOtaDot" title="Atualização disponível"></span>
+      <svg class="chevron-down" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+
+    <button class="icon-pill-btn" id="btnPower" aria-label="Ligar ou Standby">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Touchpad / Clickpad Stage -->
+  <section class="pad-stage">
+    <!-- Transient HUD Pill -->
+    <div class="hud-pill" id="hudPill">
+      <span class="hud-icon" id="hudIcon"></span>
+      <span class="hud-text" id="hudTitle"></span>
+      <div class="hud-bar-wrap" id="hudBarWrap"><div class="hud-bar-fill" id="hudBarFill"></div></div>
+      <span class="hud-sub" id="hudSub"></span>
+    </div>
+
+    <!-- Matte Graphite Touchpad -->
+    <div class="touchpad" id="touchpad" aria-label="Touchpad Direcional">
+      <div class="touchpad-glow" id="touchGlow"></div>
+      <span class="pad-chevron up" id="chevUp">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </span>
+      <span class="pad-chevron down" id="chevDown">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </span>
+      <span class="pad-chevron left" id="chevLeft">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </span>
+      <span class="pad-chevron right" id="chevRight">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </span>
+      <span class="pad-center-dot"></span>
+    </div>
+
+    <!-- Clickpad Ring (D-Pad Mode) -->
+    <div class="clickpad-wrap" id="clickpadWrap">
+      <div class="clickpad-ring">
+        <button class="ring-dir up" data-hold-key="up" aria-label="Cima">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="ring-dir down" data-hold-key="down" aria-label="Baixo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="ring-dir left" data-hold-key="left" aria-label="Esquerda">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <button class="ring-dir right" data-hold-key="right" aria-label="Direita">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="ring-ok" id="ringOk" aria-label="Confirmar">OK</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Exact Apple TV Native Button Deck -->
+  <section class="deck">
+    <!-- Row 1: Back | TV/Home | Menu -->
+    <div class="deck-row-top">
+      <button class="tactile-btn" id="btnBack" aria-label="Voltar">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+
+      <button class="tactile-btn" id="btnHome" aria-label="Início ou Aplicativos">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="13" rx="2.5"/><line x1="8" y1="21" x2="16" y2="21"/>
+        </svg>
+      </button>
+
+      <button class="tactile-btn" id="btnMenu" aria-label="Menu">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Rows 2 & 3: Play/Pause, Mute | -10s, +10s | Tall Volume Rocker Pill -->
+    <div class="deck-grid-lower">
+      <button class="tactile-btn" id="btnPlayPause" aria-label="Reproduzir ou Pausar">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3.5 6.2a1 1 0 0 1 1.52-.85l7.2 4.8a1 1 0 0 1 0 1.66l-7.2 4.8a1 1 0 0 1-1.52-.85V6.2z"/>
+          <rect x="14.5" y="5.5" width="2.6" height="13" rx="1"/>
+          <rect x="19" y="5.5" width="2.6" height="13" rx="1"/>
+        </svg>
+      </button>
+
+      <button class="tactile-btn" id="btnRewind" data-hold-key="rewind" aria-label="Retroceder 10 segundos">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+          <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-size="8.2" font-weight="700">10</text>
+        </svg>
+      </button>
+
+      <!-- Tall Volume Rocker -->
+      <div class="vol-rocker">
+        <button class="vol-half" id="btnVolUp" data-hold-key="vol_up" aria-label="Aumentar Volume">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+        </button>
+        <div class="vol-divider"></div>
+        <button class="vol-half" id="btnVolDown" data-hold-key="vol_down" aria-label="Diminuir Volume">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>
+        </button>
+      </div>
+
+      <button class="tactile-btn" id="btnMute" aria-label="Silenciar">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+          <line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>
+        </svg>
+      </button>
+
+      <button class="tactile-btn" id="btnForward" data-hold-key="forward" aria-label="Avançar 10 segundos">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>
+          <text x="12" y="15.5" text-anchor="middle" fill="currentColor" stroke="none" font-size="8.2" font-weight="700">10</text>
+        </svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Bottom Compact Bar -->
+  <footer class="bottom-bar">
+    <button class="bottom-pill" id="btnOpenApps" aria-label="Aplicativos">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/>
+        <rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>
+      </svg>
+      <span>Apps</span>
+    </button>
+
+    <button class="bottom-pill" id="btnOpenKeystone" aria-label="Keystone e Resolução">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 8V5a1 1 0 0 1 1-1h3"/><path d="M20 8V5a1 1 0 0 0-1-1h-3"/>
+        <path d="M4 16v3a1 1 0 0 0 1 1h3"/><path d="M20 16v3a1 1 0 0 1-1 1h-3"/>
+        <circle cx="12" cy="12" r="2"/>
+      </svg>
+      <span>Keystone</span>
+    </button>
+
+    <button class="bottom-pill" id="btnTogglePad" aria-label="Alternar Touchpad e D-Pad">
+      <span id="padToggleIcon" style="display:inline-flex"></span>
+      <span id="padToggleLabel">D-Pad</span>
+    </button>
+  </footer>
+</div>
+
+<!-- ==================== APPS SHEET ==================== -->
+<div class="sheet-backdrop" id="appsSheet">
+  <div class="sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">Aplicativos</span>
+      <button class="sheet-close" data-close-sheet="appsSheet">Fechar</button>
+    </div>
+    <div class="sheet-body">
+      <!-- Kill Background Apps -->
+      <button class="glass-card kill-bg-card" id="btnKillBg">
+        <div class="kill-bg-icon" id="killBgIcon">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+          </svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600" id="killBgTitle">Fechar Apps em 2º Plano</div>
+          <div style="font-size:12px;color:var(--text-secondary)">Libera memória RAM no projetor</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF9F0A" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
+        </svg>
+      </button>
+
+      <!-- Dynamic Dock do Projetor -->
+      <div>
+        <div class="section-head">
+          <span class="section-label">Dock do Projetor</span>
+          <button class="section-action" id="btnSyncApps">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Sincronizar
+          </button>
+        </div>
+        <div class="dock-grid" id="dockGrid"></div>
+      </div>
+
+      <!-- System Shortcuts -->
+      <div>
+        <div class="section-head">
+          <span class="section-label">Atalhos do Projetor</span>
+        </div>
+        <div class="shortcut-grid">
+          <button class="shortcut-tile" data-launch-app="hdmi" data-launch-label="HDMI">
+            <div class="shortcut-icon" style="background:rgba(56,219,117,0.18);color:#38DB75">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3" y="7" width="18" height="10" rx="2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+            </div>
+            <div><div class="shortcut-title">HDMI</div><div class="shortcut-sub">Entrada Externa</div></div>
+          </button>
+
+          <button class="shortcut-tile" data-launch-app="keystone" data-launch-label="Keystone">
+            <div class="shortcut-icon" style="background:rgba(255,159,10,0.18);color:#FF9F0A">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3"/></svg>
+            </div>
+            <div><div class="shortcut-title">Keystone</div><div class="shortcut-sub">Correção 4 Pontos</div></div>
+          </button>
+
+          <button class="shortcut-tile" data-launch-app="bluetooth" data-launch-label="Bluetooth">
+            <div class="shortcut-icon" style="background:rgba(97,173,255,0.18);color:#61ADFF">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>
+            </div>
+            <div><div class="shortcut-title">Bluetooth</div><div class="shortcut-sub">Áudio & Controles</div></div>
+          </button>
+
+          <button class="shortcut-tile" data-launch-app="settings" data-launch-label="Ajustes">
+            <div class="shortcut-icon" style="background:rgba(160,168,184,0.18);color:#B0B7C6">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </div>
+            <div><div class="shortcut-title">Ajustes</div><div class="shortcut-sub">Sistema Android</div></div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== DEVICE PICKER SHEET ==================== -->
+<div class="sheet-backdrop" id="deviceSheet">
+  <div class="sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">Projetores</span>
+      <button class="sheet-close" data-close-sheet="deviceSheet">Fechar</button>
+    </div>
+    <div class="sheet-body">
+      <!-- Live Diagnostics Card -->
+      <div class="glass-card">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="status-led" id="diagLed" style="width:11px;height:11px"></span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:7px">
+              <span style="font-size:17px;font-weight:700" id="diagName">HY300Pro</span>
+              <span id="diagBadge" style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,0.08);color:var(--text-secondary)">Wi-Fi</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums" id="diagEndpoint">192.168.1.7:8091</div>
+          </div>
+          <button class="icon-pill-btn" id="btnReconnect" style="width:36px;height:36px" aria-label="Reconectar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="telemetry-cell"><div class="telemetry-k">Estado</div><div class="telemetry-v" id="telState">Offline</div></div>
+          <div class="telemetry-cell"><div class="telemetry-k" id="telRttLabel">Latência TCP</div><div class="telemetry-v" id="telRtt">—</div></div>
+          <div class="telemetry-cell"><div class="telemetry-k">Resolução</div><div class="telemetry-v" id="telRes">1920x1080</div></div>
+          <div class="telemetry-cell"><div class="telemetry-k">Daemon Nativo</div><div class="telemetry-v" id="telDaemon">Aguardando</div></div>
+        </div>
+      </div>
+
+      <!-- Bluetooth (Direto) -->
+      <div>
+        <div class="section-head">
+          <span class="section-label">Bluetooth (Direto)</span>
+          <button class="section-action" id="btnScanBle">Escanear</button>
+        </div>
+        <div class="device-list" id="bleList"></div>
+      </div>
+
+      <!-- Rede Wi-Fi (Bonjour / UDP) -->
+      <div>
+        <div class="section-head">
+          <span class="section-label">Rede Wi-Fi (Bonjour / UDP)</span>
+          <button class="section-action" id="btnScanWifi" style="color:var(--text-secondary)">Buscar</button>
+        </div>
+        <div class="device-list" id="wifiList"></div>
+      </div>
+
+      <!-- Manual IP -->
+      <div>
+        <div class="section-head">
+          <span class="section-label">Conexão Manual por IP</span>
+        </div>
+        <div class="ip-row">
+          <input class="text-input" id="manualIpInput" type="text" inputmode="decimal" placeholder="192.168.1.7" autocomplete="off" spellcheck="false">
+          <button class="primary-btn" id="btnConnectIp">Conectar</button>
+        </div>
+      </div>
+
+      <!-- GitHub OTA Self-Update -->
+      <div>
+        <div class="section-head">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="section-label">Atualização via GitHub (OTA)</span>
+            <span class="ota-dot" id="sheetOtaDot"></span>
+          </div>
+          <button class="section-action" id="btnCheckOta">Verificar</button>
+        </div>
+        <div class="glass-card" style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="otaIconBox" style="width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.07);color:var(--status-awake);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:600" id="otaTitle">HY300 Remote v1.0.6</div>
+              <div style="font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums" id="otaSubtitle">Atualizado • build 6</div>
+            </div>
+          </div>
+
+          <div class="ota-notes" id="otaNotes" style="display:none"></div>
+
+          <div id="otaProgressBlock" style="display:none;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums">
+              <span id="otaProgressMsg">Baixando APK…</span>
+              <span id="otaProgressPct">0%</span>
+            </div>
+            <div class="ota-progress-wrap" id="otaProgressWrap" style="display:block">
+              <div class="ota-progress-fill" id="otaProgressFill"></div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="primary-btn" id="btnInstallOta" style="width:100%">Baixar e Instalar APK</button>
+            <button class="primary-btn secondary-btn" id="btnOpenOtaBrowser" style="width:100%;height:38px;font-size:13px">Abrir no Navegador</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== KEYSTONE & RESOLUTION SHEET ==================== -->
+<div class="sheet-backdrop" id="keystoneSheet">
+  <div class="sheet">
+    <div class="sheet-header">
+      <span class="sheet-title">Imagem & Keystone</span>
+      <button class="sheet-close" data-close-sheet="keystoneSheet">Fechar</button>
+    </div>
+    <div class="sheet-body">
+      <div>
+        <div class="section-head"><span class="section-label">Resolução de Saída</span></div>
+        <div class="device-list" id="resPresetList">
+          <button class="device-row" data-res-preset="1080p" data-res-match="1920x1080">
+            <div style="flex:1"><div style="font-size:15px;font-weight:600">1080p Full HD</div><div style="font-size:12px;color:var(--text-secondary)">1920×1080</div></div>
+            <span class="res-check"></span>
+          </button>
+          <button class="device-row" data-res-preset="720p_tv" data-res-match="1280x720">
+            <div style="flex:1"><div style="font-size:15px;font-weight:600">720p Android TV</div><div style="font-size:12px;color:var(--text-secondary)">1280×720 • 213dpi</div></div>
+            <span class="res-check"></span>
+          </button>
+          <button class="device-row" data-res-preset="720p" data-res-match="1280x720">
+            <div style="flex:1"><div style="font-size:15px;font-weight:600">720p Nativo</div><div style="font-size:12px;color:var(--text-secondary)">1280×720</div></div>
+            <span class="res-check"></span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head"><span class="section-label">Geometria Keystone</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <button class="primary-btn orange-btn" id="btnResetKeystone">Resetar 100%</button>
+          <button class="primary-btn secondary-btn" id="btnOpen4Point">4 Pontos</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <span class="section-label">Volume Direto</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-secondary);font-variant-numeric:tabular-nums" id="sliderVolLabel">10 / 20</span>
+        </div>
+        <div class="glass-card" style="display:flex;align-items:center;gap:12px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-secondary)"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+          <input type="range" class="vol-slider" id="volSlider" min="0" max="20" value="10">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-secondary)"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== LIVE KEYBOARD OVERLAY ==================== -->
+<div class="kb-backdrop" id="kbOverlay">
+  <div class="kb-card" id="kbCard">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:15px;font-weight:700">Teclado ao Vivo</span>
+      <button class="sheet-close" id="btnCloseKb">Fechar</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input class="text-input" id="liveKbInput" type="text" placeholder="Digite para enviar ao projetor…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button class="sheet-close" id="btnClearKb" style="display:none;padding:8px 10px">✕</button>
+    </div>
+    <div class="kb-actions">
+      <button class="kb-pill" id="btnKbSearch">Buscar</button>
+      <button class="kb-pill" id="btnKbBack">Apagar</button>
+      <button class="kb-pill" id="btnKbEnter">Enter</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const Bridge = window.NativeRemote || {
+    sendKey(){}, sendText(){}, setVolume(){}, sendPower(){}, launchApp(){},
+    setResolution(){}, resetKeystone(){}, requestApps(){}, killBackgroundApps(){},
+    connectWifi(){}, reconnect(){}, startWifiDiscovery(){}, stopWifiDiscovery(){},
+    startBluetoothScan(){}, stopBluetoothScan(){}, connectBluetooth(){},
+    requestBluetoothPermissions(){}, haptic(){}, checkForUpdate(){},
+    installUpdate(){}, openExternalUrl(){}, getInitialState(){ return '{}'; }
+  };
+
+  const state = {
+    transport: 'wifi',
+    bleMode: 'ble',
+    connection: 'disconnected',
+    host: '192.168.1.7',
+    tcpPort: 8091,
+    httpPort: 8090,
+    bleAddress: '',
+    device: 'HY300Pro',
+    awake: true,
+    vol: 10,
+    maxVol: 20,
+    muted: false,
+    res: '1920x1080',
+    daemon: false,
+    rtt: -1,
+    hasBtPermission: true,
+    bleStatus: 'Bluetooth pronto',
+    bleScanning: false,
+    wifiScanning: false,
+    killingBg: false,
+    padMode: localStorage.getItem('hy300_pad_mode') || 'touchpad',
+    dockApps: [],
+    wifiDevices: [],
+    bleDevices: [],
+    appVersion: '1.0.6',
+    appBuild: 6,
+    fallbackApkUrl: 'https://github.com/luxfajah/hy300-remote-ios/releases/latest/download/HY300Remote.apk',
+    ota: {
+      checking: false,
+      hasUpdate: false,
+      latestVersion: '',
+      notes: '',
+      apkUrl: '',
+      error: '',
+      installing: false,
+      progressPct: 0,
+      progressMsg: ''
+    }
+  };
+
+  const FALLBACK_DOCK = [
+    { pkg: 'stremio', label: 'Stremio', color: '#7A6BF5', fallback: true },
+    { pkg: 'unitv', label: 'UniTV', color: '#29C7F0', fallback: true },
+    { pkg: 'smarttube', label: 'SmartTube', color: '#F24247', fallback: true }
+  ];
+
+  // --- Helpers ---
+  const $ = id => document.getElementById(id);
+  const haptic = style => { try { Bridge.haptic(style || 'light'); } catch(e) {} };
+
+  function loadLocalApps() {
+    try {
+      const raw = localStorage.getItem('hy300_dock_apps');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
+      }
+    } catch(e) {}
+    return [];
+  }
+
+  function saveLocalApps(items) {
+    try { localStorage.setItem('hy300_dock_apps', JSON.stringify(items)); } catch(e) {}
+  }
+
+  // --- HUD Pill ---
+  let hudTimer = null;
+  function showHUD(title, subtitle, volumeProgress) {
+    $('hudTitle').textContent = title || '';
+    $('hudSub').textContent = subtitle || '';
+    const barWrap = $('hudBarWrap');
+    if (typeof volumeProgress === 'number') {
+      barWrap.style.display = 'block';
+      $('hudBarFill').style.width = Math.max(0, Math.min(100, Math.round(volumeProgress * 100))) + '%';
+    } else {
+      barWrap.style.display = 'none';
+    }
+    const pill = $('hudPill');
+    pill.classList.add('show');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => pill.classList.remove('show'), 1600);
+  }
+
+  function showVolumeHUD() {
+    const pct = state.maxVol > 0 ? (state.muted ? 0 : state.vol / state.maxVol) : 0;
+    showHUD(state.muted ? 'Mudo' : 'Volume', `${state.vol}/${state.maxVol}`, pct);
+  }
+
+  // --- UI Renderers ---
+  function renderTopAndDiagnostics() {
+    const isConnected = state.connection === 'connected';
+    const isConnecting = state.connection === 'connecting' || state.connection === 'reconnecting';
+    const ledClass = isConnected ? (state.awake ? 'awake' : 'standby') : (isConnecting ? 'connecting' : '');
+
+    $('topLed').className = 'status-led ' + ledClass;
+    $('diagLed').className = 'status-led ' + ledClass;
+    $('topDeviceName').textContent = state.device || 'HY300Pro';
+    $('diagName').textContent = state.device || 'HY300Pro';
+
+    const btSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>';
+    const wifiSvg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>';
+    const tIcon = $('topTransportIcon');
+    tIcon.innerHTML = state.transport === 'bluetooth' ? btSvg : wifiSvg;
+    tIcon.className = 'transport-badge' + (state.transport === 'bluetooth' ? ' bt' : '');
+
+    $('btnPower').classList.toggle('power-off', isConnected && !state.awake);
+    $('btnMute').classList.toggle('active-danger', !!state.muted);
+
+    // Diagnostics sheet
+    const badge = $('diagBadge');
+    if (state.transport === 'bluetooth') {
+      badge.textContent = 'Bluetooth';
+      badge.style.color = '#61ADFF';
+      badge.style.background = 'rgba(97,173,255,0.18)';
+      $('diagEndpoint').textContent = state.bleMode === 'rfcomm'
+        ? 'Bluetooth Clássico • RFCOMM'
+        : 'Bluetooth LE • Direto (GATT A300)';
+      $('telRttLabel').textContent = 'Latência BLE';
+    } else {
+      badge.textContent = 'Wi-Fi';
+      badge.style.color = 'var(--text-secondary)';
+      badge.style.background = 'rgba(255,255,255,0.08)';
+      $('diagEndpoint').textContent = `${state.host}:${state.tcpPort}`;
+      $('telRttLabel').textContent = 'Latência TCP';
+    }
+
+    const connLabel = {
+      connected: state.awake ? 'Ligado' : 'Standby',
+      connecting: 'Conectando…',
+      reconnecting: 'Reconectando…',
+      disconnected: 'Offline'
+    }[state.connection] || 'Offline';
+
+    $('telState').textContent = connLabel;
+    $('telRtt').textContent = state.rtt > 0 ? `${state.rtt} ms` : '—';
+    $('telRes').textContent = state.res || '1920x1080';
+    $('telDaemon').textContent = state.daemon ? 'Ativo (v2)' : 'Aguardando';
+
+    // Volume slider & Resolution checkmarks
+    const slider = $('volSlider');
+    slider.max = Math.max(1, state.maxVol);
+    slider.value = Math.min(state.maxVol, Math.max(0, state.vol));
+    $('sliderVolLabel').textContent = `${state.vol} / ${state.maxVol}`;
+
+    document.querySelectorAll('#resPresetList .device-row').forEach(btn => {
+      const match = btn.getAttribute('data-res-match');
+      const check = btn.querySelector('.res-check');
+      const active = (state.res || '').includes(match);
+      check.innerHTML = active
+        ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="#38DB75"><circle cx="12" cy="12" r="10"/><polyline points="8 12.5 11 15.5 16 9.5" fill="none" stroke="#0A0B0E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        : '';
+    });
+  }
+
+  function renderPadMode() {
+    const isTouch = state.padMode !== 'clickpad';
+    $('touchpad').style.display = isTouch ? 'block' : 'none';
+    $('clickpadWrap').style.display = isTouch ? 'none' : 'flex';
+    $('padToggleLabel').textContent = isTouch ? 'D-Pad' : 'Touch';
+    $('padToggleIcon').innerHTML = isTouch
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3z"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>';
+  }
+
+  function buildIconUrl(app) {
+    if (state.transport !== 'wifi') return null;
+    if (app.icon && (app.icon.startsWith('http://') || app.icon.startsWith('https://'))) return app.icon;
+    const path = app.icon
+      ? (app.icon.startsWith('/') ? app.icon : '/' + app.icon)
+      : '/api/app-icon/' + encodeURIComponent(app.pkg);
+    return `http://${state.host}:${state.httpPort}${path}`;
+  }
+
+  function renderDockApps() {
+    const grid = $('dockGrid');
+    const items = state.dockApps.length ? state.dockApps : FALLBACK_DOCK;
+    grid.innerHTML = '';
+
+    items.forEach(app => {
+      const tint = app.color || '#5C7AEA';
+      const btn = document.createElement('button');
+      btn.className = 'dock-tile';
+      btn.setAttribute('aria-label', 'Abrir ' + app.label);
+
+      const box = document.createElement('div');
+      box.className = 'dock-icon-box';
+      box.style.background = tint + '2E';
+      box.style.border = '1px solid ' + tint + '52';
+      box.style.color = tint;
+
+      const initial = (app.label || app.pkg || 'A').trim().charAt(0).toUpperCase() || 'A';
+      const fallbackSpan = document.createElement('span');
+      fallbackSpan.textContent = initial;
+      box.appendChild(fallbackSpan);
+
+      if (!app.fallback) {
+        const iconUrl = buildIconUrl(app);
+        if (iconUrl) {
+          const img = document.createElement('img');
+          img.src = iconUrl;
+          img.alt = app.label;
+          img.onload = () => { fallbackSpan.style.display = 'none'; };
+          img.onerror = () => { img.remove(); };
+          box.appendChild(img);
+        }
+      }
+
+      const lbl = document.createElement('div');
+      lbl.className = 'dock-label';
+      lbl.textContent = app.label || app.pkg;
+
+      btn.appendChild(box);
+      btn.appendChild(lbl);
+      btn.addEventListener('click', () => {
+        haptic('medium');
+        Bridge.launchApp(app.pkg);
+        showHUD('Abrindo ' + (app.label || app.pkg));
+        closeSheet('appsSheet');
+      });
+      grid.appendChild(btn);
+    });
+  }
+
+  function rssiLabel(rssi) {
+    if (rssi >= -60) return 'Sinal Forte';
+    if (rssi >= -75) return 'Sinal Bom';
+    return 'Sinal Fraco';
+  }
+
+  function renderBleList() {
+    const btn = $('btnScanBle');
+    btn.innerHTML = state.bleScanning
+      ? '<span class="spinner"></span> Buscando…'
+      : 'Escanear';
+
+    const list = $('bleList');
+    list.innerHTML = '';
+
+    if (!state.hasBtPermission) {
+      const row = document.createElement('button');
+      row.className = 'device-row';
+      row.innerHTML = '<div style="flex:1"><div style="font-size:14px;font-weight:600;color:var(--status-standby)">Permissão Bluetooth necessária</div><div style="font-size:12px;color:var(--text-secondary)">Toque para autorizar o Bluetooth LE</div></div><span style="font-size:12px;font-weight:700;color:var(--accent-blue)">Permitir</span>';
+      row.addEventListener('click', () => { haptic('light'); Bridge.requestBluetoothPermissions(); });
+      list.appendChild(row);
+      return;
+    }
+
+    if (!state.bleDevices.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-row';
+      empty.textContent = state.bleScanning
+        ? 'Procurando HY300Pro próximo via Bluetooth LE…'
+        : (state.bleStatus || 'Nenhum projetor Bluetooth encontrado. Toque em Escanear.');
+      list.appendChild(empty);
+      return;
+    }
+
+    state.bleDevices.forEach(dev => {
+      const isSelected = state.transport === 'bluetooth' && state.bleAddress === dev.address && state.connection === 'connected';
+      const row = document.createElement('button');
+      row.className = 'device-row';
+      row.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${isSelected ? '#38DB75' : '#61ADFF'}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600">${dev.name}</div>
+          <div style="font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums">${dev.kind || 'BLE GATT'} • ${rssiLabel(dev.rssi)} (${dev.rssi} dBm)</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:${isSelected ? '#38DB75' : '#61ADFF'}">${isSelected ? 'Conectado' : 'Conectar'}</span>
+      `;
+      row.addEventListener('click', () => {
+        haptic('medium');
+        Bridge.connectBluetooth(dev.address);
+        showHUD('Conectando Bluetooth…');
+        closeSheet('deviceSheet');
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function renderWifiList() {
+    const btn = $('btnScanWifi');
+    btn.innerHTML = state.wifiScanning
+      ? '<span class="spinner"></span> Buscando…'
+      : 'Buscar';
+
+    const list = $('wifiList');
+    list.innerHTML = '';
+
+    if (!state.wifiDevices.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-row';
+      empty.textContent = state.wifiScanning
+        ? 'Procurando projetores HY300 na rede Wi-Fi…'
+        : 'Nenhum projetor descoberto automaticamente no Wi-Fi.';
+      list.appendChild(empty);
+      return;
+    }
+
+    state.wifiDevices.forEach(dev => {
+      const isSelected = state.transport === 'wifi' && state.host === dev.host;
+      const row = document.createElement('button');
+      row.className = 'device-row';
+      row.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${isSelected ? '#38DB75' : 'rgba(255,255,255,0.62)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600">${dev.name}</div>
+          <div style="font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums">${dev.host} • ${dev.source || 'Wi-Fi'}</div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:${isSelected ? '#38DB75' : 'var(--text-secondary)'}">${isSelected ? 'Ativo' : 'Usar'}</span>
+      `;
+      row.addEventListener('click', () => {
+        haptic('medium');
+        $('manualIpInput').value = dev.host;
+        Bridge.connectWifi(dev.host);
+        showHUD('Conectando ' + dev.host);
+        closeSheet('deviceSheet');
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function renderOtaSection() {
+    const ota = state.ota;
+    const hasUpdate = !!ota.hasUpdate;
+
+    $('topOtaDot').classList.toggle('show', hasUpdate);
+    $('sheetOtaDot').classList.toggle('show', hasUpdate);
+
+    const checkBtn = $('btnCheckOta');
+    checkBtn.disabled = !!ota.checking;
+    checkBtn.innerHTML = ota.checking
+      ? '<span class="spinner"></span> Verificando…'
+      : 'Verificar';
+
+    const iconBox = $('otaIconBox');
+    if (hasUpdate) {
+      iconBox.style.background = 'rgba(45,127,249,0.22)';
+      iconBox.style.color = '#61ADFF';
+      iconBox.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+      $('otaTitle').textContent = `Nova versão v${ota.latestVersion} disponível!`;
+      $('otaSubtitle').textContent = `Instalado: v${state.appVersion} (build ${state.appBuild})`;
+    } else {
+      iconBox.style.background = 'rgba(255,255,255,0.07)';
+      iconBox.style.color = 'var(--status-awake)';
+      iconBox.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      $('otaTitle').textContent = `HY300 Remote v${state.appVersion}`;
+      $('otaSubtitle').textContent = ota.error
+        ? ota.error
+        : `Atualizado • build ${state.appBuild}`;
+    }
+
+    const notesEl = $('otaNotes');
+    if (hasUpdate && ota.notes) {
+      notesEl.textContent = ota.notes;
+      notesEl.style.display = '-webkit-box';
+    } else {
+      notesEl.style.display = 'none';
+    }
+
+    const progBlock = $('otaProgressBlock');
+    if (ota.installing || ota.progressMsg) {
+      progBlock.style.display = 'flex';
+      $('otaProgressMsg').textContent = ota.progressMsg || 'Baixando APK…';
+      $('otaProgressPct').textContent = ota.progressPct > 0 ? `${ota.progressPct}%` : '';
+      $('otaProgressFill').style.width = `${Math.max(0, Math.min(100, ota.progressPct))}%`;
+    } else {
+      progBlock.style.display = 'none';
+    }
+
+    const installBtn = $('btnInstallOta');
+    installBtn.disabled = !!ota.installing;
+    installBtn.textContent = ota.installing
+      ? 'Baixando atualização…'
+      : (hasUpdate ? `Baixar e Instalar v${ota.latestVersion}` : 'Baixar e Instalar APK');
+  }
+
+  // --- Sheet Controls ---
+  function openSheet(id) {
+    haptic('light');
+    $(id).classList.add('open');
+    if (id === 'appsSheet') {
+      renderDockApps();
+      Bridge.requestApps();
+    } else if (id === 'deviceSheet') {
+      $('manualIpInput').value = state.host;
+      renderTopAndDiagnostics();
+      renderBleList();
+      renderWifiList();
+      renderOtaSection();
+      Bridge.startWifiDiscovery();
+      if (state.hasBtPermission) Bridge.startBluetoothScan();
+    } else if (id === 'keystoneSheet') {
+      renderTopAndDiagnostics();
+    }
+  }
+
+  function closeSheet(id) {
+    $(id).classList.remove('open');
+    if (id === 'deviceSheet') {
+      Bridge.stopWifiDiscovery();
+      Bridge.stopBluetoothScan();
+    }
+  }
+
+  document.querySelectorAll('.sheet-backdrop').forEach(bd => {
+    bd.addEventListener('click', e => {
+      if (e.target === bd) closeSheet(bd.id);
+    });
+  });
+
+  document.querySelectorAll('[data-close-sheet]').forEach(btn => {
+    btn.addEventListener('click', () => closeSheet(btn.getAttribute('data-close-sheet')));
+  });
+
+  // --- Touchpad Gesture Engine (Tap, Long-Press OK, Continuous Swipe, Flick Momentum, Edge-Hold Repeat) ---
+  (() => {
+    const pad = $('touchpad');
+    const glow = $('touchGlow');
+    const chevs = { up: $('chevUp'), down: $('chevDown'), left: $('chevLeft'), right: $('chevRight') };
+
+    const STEP_PX = 34;
+    const TAP_SLOP = 12;
+    const LONG_PRESS_MS = 440;
+    const EDGE_HOLD_MS = 320;
+    const EDGE_RATIO = 0.17;
+
+    let activeId = null;
+    let startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let accumX = 0, accumY = 0;
+    let startTime = 0;
+    let moved = false;
+    let stepsSent = 0;
+    let longOkActive = false;
+    let edgeHoldDir = null;
+    let longTimer = null;
+    let edgeTimer = null;
+    let momentumTimers = [];
+
+    function flashDir(dir) {
+      const el = chevs[dir];
+      if (!el) return;
+      el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 160);
+    }
+
+    function clearTimers() {
+      clearTimeout(longTimer); longTimer = null;
+      clearTimeout(edgeTimer); edgeTimer = null;
+      momentumTimers.forEach(t => clearTimeout(t));
+      momentumTimers = [];
+    }
+
+    function detectEdge(x, y) {
+      const rect = pad.getBoundingClientRect();
+      const rx = (x - rect.left) / rect.width;
+      const ry = (y - rect.top) / rect.height;
+      if (ry < EDGE_RATIO) return 'up';
+      if (ry > 1 - EDGE_RATIO) return 'down';
+      if (rx < EDGE_RATIO) return 'left';
+      if (rx > 1 - EDGE_RATIO) return 'right';
+      return null;
+    }
+
+    function updateGlow(x, y) {
+      const rect = pad.getBoundingClientRect();
+      glow.style.left = (x - rect.left) + 'px';
+      glow.style.top = (y - rect.top) + 'px';
+    }
+
+    pad.addEventListener('pointerdown', e => {
+      if (activeId !== null) return;
+      activeId = e.pointerId;
+      pad.setPointerCapture(activeId);
+      clearTimers();
+
+      startX = lastX = e.clientX;
+      startY = lastY = e.clientY;
+      accumX = accumY = 0;
+      startTime = performance.now();
+      moved = false;
+      stepsSent = 0;
+      longOkActive = false;
+      edgeHoldDir = null;
+
+      pad.classList.add('pressing');
+      updateGlow(e.clientX, e.clientY);
+      glow.classList.add('visible');
+
+      const edge = detectEdge(e.clientX, e.clientY);
+      if (edge) {
+        edgeTimer = setTimeout(() => {
+          if (activeId === null || moved) return;
+          edgeHoldDir = edge;
+          haptic('rigid');
+          flashDir(edge);
+          Bridge.sendKey(edge, 'down');
+        }, EDGE_HOLD_MS);
+      } else {
+        longTimer = setTimeout(() => {
+          if (activeId === null || moved) return;
+          longOkActive = true;
+          haptic('heavy');
+          Bridge.sendKey('ok', 'down');
+          showHUD('OK (Segurando)');
+        }, LONG_PRESS_MS);
+      }
+    });
+
+    pad.addEventListener('pointermove', e => {
+      if (e.pointerId !== activeId) return;
+      updateGlow(e.clientX, e.clientY);
+
+      const dxTotal = e.clientX - startX;
+      const dyTotal = e.clientY - startY;
+      if (!moved && Math.hypot(dxTotal, dyTotal) > TAP_SLOP) {
+        moved = true;
+        clearTimeout(longTimer); longTimer = null;
+        clearTimeout(edgeTimer); edgeTimer = null;
+        if (edgeHoldDir) {
+          Bridge.sendKey(edgeHoldDir, 'up');
+          edgeHoldDir = null;
+        }
+      }
+
+      if (longOkActive) return;
+
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      accumX += dx;
+      accumY += dy;
+
+      if (Math.abs(accumX) >= STEP_PX && Math.abs(accumX) >= Math.abs(accumY)) {
+        const dir = accumX > 0 ? 'right' : 'left';
+        accumX = 0;
+        accumY *= 0.3;
+        stepsSent++;
+        haptic('selection');
+        flashDir(dir);
+        Bridge.sendKey(dir, 'tap');
+      } else if (Math.abs(accumY) >= STEP_PX && Math.abs(accumY) > Math.abs(accumX)) {
+        const dir = accumY > 0 ? 'down' : 'up';
+        accumY = 0;
+        accumX *= 0.3;
+        stepsSent++;
+        haptic('selection');
+        flashDir(dir);
+        Bridge.sendKey(dir, 'tap');
+      }
+    });
+
+    function endTouch(e) {
+      if (e.pointerId !== activeId) return;
+      activeId = null;
+      pad.classList.remove('pressing');
+      glow.classList.remove('visible');
+      clearTimeout(longTimer); longTimer = null;
+      clearTimeout(edgeTimer); edgeTimer = null;
+
+      if (longOkActive) {
+        longOkActive = false;
+        Bridge.sendKey('ok', 'up');
+        return;
+      }
+
+      if (edgeHoldDir) {
+        Bridge.sendKey(edgeHoldDir, 'up');
+        edgeHoldDir = null;
+        return;
+      }
+
+      const elapsed = Math.max(1, performance.now() - startTime);
+      const dxTotal = e.clientX - startX;
+      const dyTotal = e.clientY - startY;
+      const dist = Math.hypot(dxTotal, dyTotal);
+
+      if (!moved && stepsSent === 0) {
+        haptic('medium');
+        Bridge.sendKey('ok', 'tap');
+        return;
+      }
+
+      // Fast flick momentum
+      const velocity = dist / elapsed; // px/ms
+      if (velocity > 0.72 && elapsed < 260 && dist > 45) {
+        const dir = Math.abs(dxTotal) >= Math.abs(dyTotal)
+          ? (dxTotal > 0 ? 'right' : 'left')
+          : (dyTotal > 0 ? 'down' : 'up');
+        const extraSteps = velocity > 1.35 ? 3 : 2;
+        for (let i = 1; i <= extraSteps; i++) {
+          momentumTimers.push(setTimeout(() => {
+            haptic('selection');
+            flashDir(dir);
+            Bridge.sendKey(dir, 'tap');
+          }, i * 75));
+        }
+      }
+    }
+
+    pad.addEventListener('pointerup', endTouch);
+    pad.addEventListener('pointercancel', endTouch);
+  })();
+
+  // --- Press-and-Hold Key Bindings (Volume Rocker, -10s/+10s, Clickpad Ring) ---
+  function bindHoldButton(el, key) {
+    let active = false;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      active = true;
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('pressed');
+      haptic('light');
+      Bridge.sendKey(key, 'down');
+      if (key === 'vol_up') {
+        state.muted = false;
+        state.vol = Math.min(state.maxVol, state.vol + 1);
+        showVolumeHUD();
+      } else if (key === 'vol_down') {
+        state.vol = Math.max(0, state.vol - 1);
+        showVolumeHUD();
+      }
+    });
+    const release = () => {
+      if (!active) return;
+      active = false;
+      el.classList.remove('pressed');
+      Bridge.sendKey(key, 'up');
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+  }
+
+  document.querySelectorAll('[data-hold-key]').forEach(el => {
+    bindHoldButton(el, el.getAttribute('data-hold-key'));
+  });
+
+  // --- Tap / Long-Press Deck Buttons ---
+  function bindTapButton(el, onTap, onLongPress) {
+    let active = false;
+    let longFired = false;
+    let timer = null;
+
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      active = true;
+      longFired = false;
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('pressed');
+      haptic('light');
+      if (onLongPress) {
+        timer = setTimeout(() => {
+          if (!active) return;
+          longFired = true;
+          haptic('heavy');
+          onLongPress();
+        }, 480);
+      }
+    });
+
+    const release = (cancelled) => {
+      if (!active) return;
+      active = false;
+      clearTimeout(timer);
+      el.classList.remove('pressed');
+      if (!cancelled && !longFired && onTap) onTap();
+    };
+    el.addEventListener('pointerup', () => release(false));
+    el.addEventListener('pointercancel', () => release(true));
+  }
+
+  bindTapButton($('btnBack'), () => Bridge.sendKey('back', 'tap'));
+  bindTapButton($('btnHome'),
+    () => Bridge.sendKey('home', 'tap'),
+    () => { Bridge.sendKey('apps', 'tap'); showHUD('Aplicativos'); }
+  );
+  bindTapButton($('btnMenu'), () => Bridge.sendKey('menu', 'tap'));
+  bindTapButton($('btnPlayPause'), () => Bridge.sendKey('play_pause', 'tap'));
+  bindTapButton($('btnMute'), () => {
+    state.muted = !state.muted;
+    Bridge.sendKey('mute', 'tap');
+    renderTopAndDiagnostics();
+    showHUD(state.muted ? 'Sem Som' : 'Som Ativo');
+  });
+
+  // Ring OK (tap + long-press down/up)
+  (() => {
+    const el = $('ringOk');
+    let active = false, holding = false, timer = null;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      active = true; holding = false;
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('pressed');
+      haptic('medium');
+      timer = setTimeout(() => {
+        if (!active) return;
+        holding = true;
+        haptic('heavy');
+        Bridge.sendKey('ok', 'down');
+      }, 440);
+    });
+    const rel = (cancel) => {
+      if (!active) return;
+      active = false;
+      clearTimeout(timer);
+      el.classList.remove('pressed');
+      if (holding) Bridge.sendKey('ok', 'up');
+      else if (!cancel) Bridge.sendKey('ok', 'tap');
+    };
+    el.addEventListener('pointerup', () => rel(false));
+    el.addEventListener('pointercancel', () => rel(true));
+  })();
+
+  // Power button (tap = toggle, long-press = standby/wake)
+  bindTapButton($('btnPower'),
+    () => {
+      Bridge.sendPower('toggle');
+      showHUD('Alternando Energia');
+    },
+    () => {
+      const action = state.awake ? 'standby' : 'wake';
+      Bridge.sendPower(action);
+      showHUD(action === 'standby' ? 'Modo Standby' : 'Ligando Projetor');
+    }
+  );
+
+  // Top & Bottom Bar Buttons
+  $('btnDevicePicker').addEventListener('click', () => openSheet('deviceSheet'));
+  $('btnOpenApps').addEventListener('click', () => openSheet('appsSheet'));
+  $('btnOpenKeystone').addEventListener('click', () => openSheet('keystoneSheet'));
+  $('btnTogglePad').addEventListener('click', () => {
+    haptic('medium');
+    state.padMode = state.padMode === 'clickpad' ? 'touchpad' : 'clickpad';
+    try { localStorage.setItem('hy300_pad_mode', state.padMode); } catch(e) {}
+    renderPadMode();
+    showHUD(state.padMode === 'clickpad' ? 'Modo Clickpad' : 'Modo Touchpad');
+  });
+
+  // Apps Sheet Actions
+  let killBgTimeout = null;
+  $('btnKillBg').addEventListener('click', () => {
+    if (state.killingBg) return;
+    state.killingBg = true;
+    haptic('medium');
+    $('killBgTitle').textContent = 'Limpando memória…';
+    $('killBgIcon').innerHTML = '<span class="spinner" style="border-top-color:#FF9F0A;width:20px;height:20px"></span>';
+    Bridge.killBackgroundApps();
+    clearTimeout(killBgTimeout);
+    killBgTimeout = setTimeout(() => {
+      if (!state.killingBg) return;
+      resetKillBgUI();
+      haptic('success');
+      showHUD('Apps em 2º plano fechados');
+    }, 3000);
+  });
+
+  function resetKillBgUI() {
+    state.killingBg = false;
+    $('killBgTitle').textContent = 'Fechar Apps em 2º Plano';
+    $('killBgIcon').innerHTML = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>';
+  }
+
+  $('btnSyncApps').addEventListener('click', () => {
+    haptic('selection');
+    Bridge.requestApps();
+    showHUD('Sincronizando Dock…');
+  });
+
+  document.querySelectorAll('[data-launch-app]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-launch-app');
+      const label = btn.getAttribute('data-launch-label');
+      haptic('medium');
+      Bridge.launchApp(id);
+      showHUD('Abrindo ' + label);
+      closeSheet('appsSheet');
+    });
+  });
+
+  // Device Picker Actions
+  $('btnReconnect').addEventListener('click', () => {
+    haptic('light');
+    Bridge.reconnect();
+    showHUD('Reconectando…');
+  });
+
+  $('btnScanBle').addEventListener('click', () => {
+    haptic('selection');
+    if (state.bleScanning) {
+      Bridge.stopBluetoothScan();
+    } else {
+      state.bleDevices = [];
+      renderBleList();
+      Bridge.startBluetoothScan();
+    }
+  });
+
+  $('btnScanWifi').addEventListener('click', () => {
+    haptic('selection');
+    state.wifiDevices = [];
+    renderWifiList();
+    Bridge.startWifiDiscovery();
+  });
+
+  $('btnConnectIp').addEventListener('click', () => {
+    const ip = ($('manualIpInput').value || '').trim();
+    if (!ip) return;
+    haptic('medium');
+    Bridge.connectWifi(ip);
+    showHUD('Conectando ' + ip);
+    closeSheet('deviceSheet');
+  });
+
+  // GitHub OTA Actions
+  $('btnCheckOta').addEventListener('click', () => {
+    if (state.ota.checking) return;
+    haptic('selection');
+    state.ota.checking = true;
+    state.ota.error = '';
+    renderOtaSection();
+    Bridge.checkForUpdate();
+  });
+
+  $('btnInstallOta').addEventListener('click', () => {
+    if (state.ota.installing) return;
+    haptic('medium');
+    const url = state.ota.apkUrl || state.fallbackApkUrl;
+    state.ota.installing = true;
+    state.ota.progressPct = 2;
+    state.ota.progressMsg = 'Iniciando download…';
+    renderOtaSection();
+    Bridge.installUpdate(url);
+  });
+
+  $('btnOpenOtaBrowser').addEventListener('click', () => {
+    haptic('light');
+    Bridge.openExternalUrl(state.ota.apkUrl || state.fallbackApkUrl);
+  });
+
+  // Keystone & Resolution Sheet Actions
+  document.querySelectorAll('#resPresetList .device-row').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.getAttribute('data-res-preset');
+      const match = btn.getAttribute('data-res-match');
+      haptic('medium');
+      Bridge.setResolution(preset);
+      state.res = match;
+      renderTopAndDiagnostics();
+      showHUD('Resolução ' + preset);
+    });
+  });
+
+  $('btnResetKeystone').addEventListener('click', () => {
+    haptic('heavy');
+    Bridge.resetKeystone();
+    showHUD('Keystone Resetado');
+  });
+
+  $('btnOpen4Point').addEventListener('click', () => {
+    haptic('medium');
+    Bridge.launchApp('keystone');
+    showHUD('Abrindo Keystone');
+    closeSheet('keystoneSheet');
+  });
+
+  $('volSlider').addEventListener('input', e => {
+    const v = parseInt(e.target.value, 10) || 0;
+    $('sliderVolLabel').textContent = `${v} / ${state.maxVol}`;
+  });
+
+  $('volSlider').addEventListener('change', e => {
+    const v = parseInt(e.target.value, 10) || 0;
+    haptic('selection');
+    state.vol = v;
+    state.muted = v === 0;
+    Bridge.setVolume(v);
+    showVolumeHUD();
+  });
+
+  // --- Live Streaming Keyboard Overlay ---
+  let prevKbText = '';
+  function openKeyboard() {
+    haptic('light');
+    prevKbText = '';
+    const input = $('liveKbInput');
+    input.value = '';
+    $('btnClearKb').style.display = 'none';
+    $('kbOverlay').classList.add('open');
+    setTimeout(() => input.focus(), 60);
+  }
+
+  function closeKeyboard() {
+    $('liveKbInput').blur();
+    $('kbOverlay').classList.remove('open');
+  }
+
+  $('btnKeyboard').addEventListener('click', openKeyboard);
+  $('btnCloseKb').addEventListener('click', closeKeyboard);
+  $('kbOverlay').addEventListener('click', e => { if (e.target === $('kbOverlay')) closeKeyboard(); });
+
+  $('btnClearKb').addEventListener('click', () => {
+    prevKbText = '';
+    $('liveKbInput').value = '';
+    $('btnClearKb').style.display = 'none';
+    haptic('light');
+  });
+
+  $('liveKbInput').addEventListener('input', e => {
+    const val = e.target.value || '';
+    $('btnClearKb').style.display = val.length ? 'inline-block' : 'none';
+
+    if (val.startsWith(prevKbText)) {
+      const added = val.slice(prevKbText.length);
+      if (added) Bridge.sendText(added);
+    } else if (prevKbText.startsWith(val)) {
+      const removed = Math.min(32, prevKbText.length - val.length);
+      for (let i = 0; i < removed; i++) Bridge.sendKey('backspace', 'tap');
+    } else {
+      let common = 0;
+      const minLen = Math.min(prevKbText.length, val.length);
+      while (common < minLen && prevKbText[common] === val[common]) common++;
+      const dels = Math.min(32, prevKbText.length - common);
+      for (let i = 0; i < dels; i++) Bridge.sendKey('backspace', 'tap');
+      const added = val.slice(common);
+      if (added) Bridge.sendText(added);
+    }
+    prevKbText = val;
+  });
+
+  $('liveKbInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      haptic('medium');
+      Bridge.sendKey('enter', 'tap');
+    }
+  });
+
+  $('btnKbSearch').addEventListener('click', () => { haptic('light'); Bridge.sendKey('search', 'tap'); });
+  $('btnKbBack').addEventListener('click', () => { haptic('light'); Bridge.sendKey('backspace', 'tap'); });
+  $('btnKbEnter').addEventListener('click', () => { haptic('medium'); Bridge.sendKey('enter', 'tap'); });
+
+  // --- Native Java -> JS Real-Time Event Receiver ---
+  window.onRemoteEvent = function(ev) {
+    if (!ev || !ev.event) return;
+
+    switch (ev.event) {
+      case 'connection':
+        state.connection = ev.state || 'disconnected';
+        state.transport = ev.transport || state.transport;
+        state.bleMode = ev.bleMode || state.bleMode;
+        if (ev.host) state.host = ev.host;
+        if (ev.tcpPort) state.tcpPort = ev.tcpPort;
+        if (ev.httpPort) state.httpPort = ev.httpPort;
+        if (typeof ev.bleAddress === 'string') state.bleAddress = ev.bleAddress;
+        if (ev.device) state.device = ev.device;
+        if (typeof ev.rtt === 'number') state.rtt = ev.rtt;
+        renderTopAndDiagnostics();
+        renderBleList();
+        renderWifiList();
+        break;
+
+      case 'state':
+        if (ev.device) state.device = ev.device;
+        if (typeof ev.awake === 'boolean') state.awake = ev.awake;
+        if (typeof ev.vol === 'number') state.vol = ev.vol;
+        if (typeof ev.maxVol === 'number' && ev.maxVol > 0) state.maxVol = ev.maxVol;
+        if (typeof ev.muted === 'boolean') state.muted = ev.muted;
+        if (ev.res) state.res = ev.res;
+        if (typeof ev.daemon === 'boolean') state.daemon = ev.daemon;
+        renderTopAndDiagnostics();
+        break;
+
+      case 'rtt':
+        if (typeof ev.ms === 'number') {
+          state.rtt = ev.ms;
+          $('telRtt').textContent = ev.ms + ' ms';
+        }
+        break;
+
+      case 'apps':
+        if (Array.isArray(ev.items) && ev.items.length) {
+          state.dockApps = ev.items;
+          saveLocalApps(ev.items);
+          renderDockApps();
+        }
+        break;
+
+      case 'bg_killed':
+        clearTimeout(killBgTimeout);
+        resetKillBgUI();
+        const cnt = typeof ev.count === 'number' ? ev.count : 0;
+        showHUD(cnt > 0 ? `${cnt} apps fechados` : 'Apps em 2º plano fechados');
+        break;
+
+      case 'hw_volume':
+        if (ev.key === 'vol_up') {
+          state.muted = false;
+          state.vol = Math.min(state.maxVol, state.vol + 1);
+        } else if (ev.key === 'vol_down') {
+          state.vol = Math.max(0, state.vol - 1);
+        }
+        renderTopAndDiagnostics();
+        showVolumeHUD();
+        break;
+
+      case 'wifi_found':
+        if (ev.device && ev.device.host) {
+          const idx = state.wifiDevices.findIndex(d => d.host === ev.device.host);
+          if (idx >= 0) state.wifiDevices[idx] = ev.device;
+          else state.wifiDevices.push(ev.device);
+          renderWifiList();
+        }
+        break;
+
+      case 'wifi_scan':
+        state.wifiScanning = !!ev.scanning;
+        renderWifiList();
+        break;
+
+      case 'ble_found':
+        if (ev.device && ev.device.address) {
+          const idx = state.bleDevices.findIndex(d => d.address === ev.device.address);
+          if (idx >= 0) state.bleDevices[idx] = ev.device;
+          else state.bleDevices.push(ev.device);
+          state.bleDevices.sort((a, b) => (b.rssi || -100) - (a.rssi || -100));
+          renderBleList();
+        }
+        break;
+
+      case 'ble_status':
+        state.bleStatus = ev.status || state.bleStatus;
+        state.bleScanning = !!ev.scanning;
+        if (typeof ev.hasPermission === 'boolean') state.hasBtPermission = ev.hasPermission;
+        renderBleList();
+        break;
+
+      case 'ota_check':
+        state.ota.checking = false;
+        if (ev.currentVersion) state.appVersion = ev.currentVersion;
+        if (ev.currentBuild) state.appBuild = ev.currentBuild;
+        if (ev.fallbackUrl) state.fallbackApkUrl = ev.fallbackUrl;
+        if (ev.ok) {
+          state.ota.hasUpdate = !!ev.hasUpdate;
+          state.ota.latestVersion = ev.latestVersion || '';
+          state.ota.notes = ev.notes || '';
+          state.ota.apkUrl = ev.apkUrl || state.fallbackApkUrl;
+          state.ota.error = '';
+        } else {
+          state.ota.hasUpdate = false;
+          state.ota.error = ev.error || 'Não foi possível verificar atualizações';
+        }
+        renderOtaSection();
+        break;
+
+      case 'ota_install':
+        state.ota.progressPct = typeof ev.percent === 'number' ? ev.percent : state.ota.progressPct;
+        state.ota.progressMsg = ev.message || '';
+        if (ev.stage === 'downloading' || ev.stage === 'committing') {
+          state.ota.installing = true;
+        } else {
+          state.ota.installing = false;
+          if (ev.stage === 'success') showHUD('Atualização concluída!');
+          else if (ev.stage === 'permission_required') showHUD('Permita instalar fontes desconhecidas');
+        }
+        renderOtaSection();
+        break;
+    }
+  };
+
+  // --- Bootstrap Initial State from Native Java ---
+  function init() {
+    try {
+      const initData = JSON.parse(Bridge.getInitialState() || '{}');
+      Object.assign(state, initData);
+      if (Array.isArray(initData.dockApps) && initData.dockApps.length) {
+        state.dockApps = initData.dockApps;
+        saveLocalApps(initData.dockApps);
+      } else {
+        state.dockApps = loadLocalApps();
+      }
+    } catch(e) {
+      state.dockApps = loadLocalApps();
+    }
+    renderPadMode();
+    renderTopAndDiagnostics();
+    renderDockApps();
+    renderOtaSection();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

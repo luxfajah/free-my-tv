@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PaçocaOS TV — Protótipo Home v2 (UI/UX)</title>
+  <style>
+    :root {
+      --bg: #08090d;
+      --surface-glass: rgba(24, 26, 34, 0.54);
+      --surface-glass-hover: rgba(38, 42, 54, 0.72);
+      --surface-glass-strong: rgba(20, 22, 29, 0.72);
+      --border-glass: rgba(255, 255, 255, 0.14);
+      --border-glass-top: rgba(255, 255, 255, 0.28);
+      --text-primary: #f5f5f7;
+      --text-secondary: rgba(245, 245, 247, 0.68);
+      --text-muted: rgba(245, 245, 247, 0.48);
+      --accent-red: #ff3b30;
+      --accent-green: #30d158;
+      --focus-ring: rgba(255, 255, 255, 0.94);
+      --radius-card: 22px;
+      --radius-pill: 999px;
+      --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #040507;
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ===== PC TEST BENCH WRAPPER ===== */
+    .bench {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(45, 58, 86, 0.22), transparent 70%),
+        #040507;
+    }
+
+    .bench.full-mode {
+      display: block;
+      overflow-y: auto;
+      overflow-x: hidden;
+      height: 100vh;
+      padding: 64px 0 80px;
+    }
+
+    /* Floating PC Test Controls */
+    .bench-bar {
+      position: fixed;
+      top: 14px;
+      left: 16px;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 14px;
+      background: rgba(14, 16, 22, 0.84);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(20px);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.84);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    .bench-bar .badge {
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .bench-btn {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f5f5f7;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 180ms ease, transform 160ms var(--ease-spring);
+    }
+
+    .bench-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .bench-btn.active {
+      background: #f5f5f7;
+      color: #0b0c10;
+      border-color: #f5f5f7;
+    }
+
+    .bench-btn:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+
+    .bench-hints {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 6px;
+      padding-left: 10px;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.55);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bench-hints kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+
+    /* ===== 1920x1080 TV VIEWPORT ===== */
+    .tv-frame {
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
+      border-radius: 18px;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.12),
+        0 35px 110px rgba(0, 0, 0, 0.82);
+      transform-origin: center center;
+      flex-shrink: 0;
+    }
+
+    .bench.full-mode .tv-frame {
+      height: auto;
+      min-height: 1080px;
+      margin: 0 auto;
+      overflow: visible;
+      transform-origin: top center;
+    }
+
+    /* Ambient Dynamic Backdrop Glow behind lower sections */
+    .ambient-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 95% 42% at 50% 52%, var(--ambient-tint, rgba(46, 74, 114, 0.28)), transparent 72%),
+        radial-gradient(ellipse 70% 38% at 20% 82%, rgba(28, 34, 50, 0.36), transparent 72%),
+        linear-gradient(180deg, #08090d 0%, #090b10 40%, #0b0e15 70%, #080a0f 100%);
+      transition: background 700ms ease;
+    }
+
+    /* ===== FIXED TOP-RIGHT STATUS CAPSULE ===== */
+    .status-capsule {
+      position: absolute;
+      top: 38px;
+      right: 76px;
+      z-index: 60;
+      height: 62px;
+      padding: 0 10px 0 22px;
+      border-radius: var(--radius-pill);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      background: rgba(16, 18, 24, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-top-color: rgba(255, 255, 255, 0.28);
+      backdrop-filter: blur(28px) saturate(170%);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.36);
+    }
+
+    .status-clock {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+    }
+
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: rgba(255, 255, 255, 0.84);
+    }
+
+    .status-icon-btn {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.82);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: transform 220ms var(--ease-spring), background 180ms ease, color 180ms ease;
+    }
+
+    .status-icon-btn:hover,
+    .status-icon-btn.is-focused {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      transform: scale(1.12);
+    }
+
+    .status-pill-btn {
+      appearance: none;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: var(--radius-pill);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 220ms var(--ease-spring), background 180ms ease;
+    }
+
+    .status-pill-btn:hover,
+    .status-pill-btn.is-focused {
+      background: rgba(255, 255, 255, 0.94);
+      color: #0b0c10;
+      transform: scale(1.08);
+    }
+
+    .profile-badge {
+      appearance: none;
+      border: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #ff5449, #d9261c);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255, 59, 48, 0.4);
+      transition: transform 220ms var(--ease-spring), box-shadow 200ms ease;
+    }
+
+    .profile-badge:hover,
+    .profile-badge.is-focused {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 3px #fff, 0 8px 22px rgba(255, 59, 48, 0.5);
+    }
+
+    /* ===== SCROLLABLE TV CANVAS ===== */
+    .tv-canvas {
+      position: relative;
+      z-index: 2;
+      width: 1920px;
+      will-change: transform;
+      transition: transform 520ms var(--ease-spring);
+      padding-bottom: 72px;
+    }
+
+    .bench.full-mode .tv-canvas {
+      transform: translateY(0) !important;
+    }
+
+    /* ===== BAND 1: FULL-BLEED HERO SPOTLIGHT ===== */
+    .hero-section {
+      position: relative;
+      width: 1920px;
+      height: 920px; /* Leaves a clean ~160px peek of "Para você" at the bottom of 1080p */
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 80px 76px;
+    }
+
+    .hero-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: -180px; /* Bleeds softly behind the "Para você" header for a zero-seam transition */
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+      -webkit-mask-image: linear-gradient(
+        180deg,
+        #000 0%,
+        #000 54%,
+        rgba(0, 0, 0, 0.82) 68%,
+        rgba(0, 0, 0, 0.42) 81%,
+        rgba(0, 0, 0, 0.12) 92%,
+        transparent 100%
+      );
+      mask-image: linear-gradient(
+        180deg,
+        #000 0%,
+        #000 54%,
+        rgba(0, 0, 0, 0.82) 68%,
+        rgba(0, 0, 0, 0.42) 81%,
+        rgba(0, 0, 0, 0.12) 92%,
+        transparent 100%
+      );
+    }
+
+    .hero-backdrop img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 22%;
+      transform: scale(1.02);
+      transition: opacity 500ms ease, transform 900ms var(--ease-out);
+      filter: brightness(0.88) saturate(1.08);
+    }
+
+    .hero-scrim-left {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(90deg, rgba(8, 9, 13, 0.90) 0%, rgba(8, 9, 13, 0.64) 36%, rgba(8, 9, 13, 0.14) 68%, rgba(8, 9, 13, 0.04) 100%);
+    }
+
+    .hero-scrim-bottom {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background:
+        linear-gradient(
+          180deg,
+          rgba(8, 9, 13, 0.32) 0%,
+          rgba(8, 9, 13, 0) 22%,
+          rgba(8, 9, 13, 0.18) 56%,
+          rgba(8, 9, 13, 0.62) 78%,
+          rgba(8, 9, 13, 0.86) 100%
+        );
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 5;
+      max-width: 1220px;
+    }
+
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-size: 19px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.8);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hero-pill-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(12px);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .hero-match {
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    .hero-title {
+      font-size: 74px;
+      font-weight: 800;
+      line-height: 1.03;
+      letter-spacing: -0.03em;
+      color: #fff;
+      text-wrap: balance;
+      max-width: 960px;
+      text-shadow: 0 8px 34px rgba(0, 0, 0, 0.55);
+      margin-bottom: 22px;
+    }
+
+    /* Matches the user's sketch: Synopsis on the left, Salvar & Assistir buttons right beside it */
+    .hero-lower-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 44px;
+    }
+
+    .hero-synopsis-block {
+      width: 580px;
+      flex-shrink: 0;
+    }
+
+    .hero-synopsis-label {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.54);
+      margin-bottom: 6px;
+    }
+
+    .hero-synopsis {
+      font-size: 21px;
+      line-height: 1.44;
+      color: rgba(245, 245, 247, 0.84);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding-bottom: 4px;
+    }
+
+    .hero-btn {
+      appearance: none;
+      height: 68px;
+      min-width: 210px;
+      padding: 0 32px;
+      border-radius: 18px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 240ms var(--ease-spring), background 180ms ease, box-shadow 220ms ease, color 180ms ease;
+    }
+
+    .hero-btn-secondary {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      backdrop-filter: blur(22px) saturate(160%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 10px 28px rgba(0, 0, 0, 0.34);
+    }
+
+    .hero-btn-secondary.saved {
+      background: rgba(48, 209, 88, 0.22);
+      border-color: rgba(48, 209, 88, 0.55);
+      color: #aef7c0;
+    }
+
+    .hero-btn-primary {
+      background: #f5f5f7;
+      color: #0b0c10;
+      border: 1px solid #fff;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+    }
+
+    .hero-btn:hover,
+    .hero-btn.is-focused {
+      transform: scale(1.07) translateY(-2px);
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.92), 0 18px 42px rgba(0, 0, 0, 0.55);
+    }
+
+    .hero-btn-secondary:hover,
+    .hero-btn-secondary.is-focused {
+      background: rgba(255, 255, 255, 0.26);
+    }
+
+    .hero-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Subtle scroll cue on hero right */
+    .hero-dots {
+      position: absolute;
+      right: 80px;
+      bottom: 84px;
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hero-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.3);
+      transition: width 320ms var(--ease-spring), background 240ms ease;
+    }
+
+    .hero-dot.active {
+      width: 28px;
+      background: #fff;
+    }
+
+    /* ===== SHARED SECTION LAYOUT ===== */
+    .section-band {
+      position: relative;
+      z-index: 3;
+      width: 1920px;
+      padding: 24px 80px 38px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .section-title {
+      font-size: 46px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #fff;
+      line-height: 1.1;
+    }
+
+    /* ===== CATEGORY TABS ("Para você") ===== */
+    .tabs-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 26px;
+    }
+
+    .tab-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 24px;
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      transition: transform 220ms var(--ease-spring), background 180ms ease, color 180ms ease, border-color 180ms ease;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .tab-btn:hover,
+    .tab-btn.is-focused {
+      background: #f5f5f7;
+      color: #0b0c10;
+      transform: scale(1.06);
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+    }
+
+    /* ===== EXPANDABLE SPOTLIGHT CAROUSEL (Para você & Continuar Assistindo) ===== */
+    .carousel-viewport {
+      width: 1760px;
+      overflow: visible;
+    }
+
+    .carousel-track {
+      display: flex;
+      align-items: flex-start;
+      gap: 32px;
+      transition: transform 420ms var(--ease-spring);
+    }
+
+    .media-card {
+      flex-shrink: 0;
+      width: 296px;
+      cursor: pointer;
+      background: transparent;
+      border: 0;
+      text-align: left;
+      color: inherit;
+      transition: width 420ms var(--ease-spring), transform 300ms var(--ease-spring);
+    }
+
+    .media-card.expanded {
+      width: 752px;
+    }
+
+    .media-poster {
+      position: relative;
+      width: 100%;
+      height: 424px;
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      background: #171922;
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+      transition: border-color 220ms ease, box-shadow 260ms ease, transform 260ms var(--ease-spring);
+    }
+
+    .media-card.is-focused .media-poster {
+      border-color: rgba(255, 255, 255, 0.94);
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.35),
+        0 26px 60px rgba(0, 0, 0, 0.72);
+      transform: translateY(-4px);
+    }
+
+    .media-poster img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 500ms var(--ease-out);
+    }
+
+    .media-card.is-focused .media-poster img {
+      transform: scale(1.03);
+    }
+
+    /* Top specular highlight on focused card */
+    .media-poster::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 36%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 260ms ease;
+    }
+
+    .media-card.is-focused .media-poster::after {
+      opacity: 1;
+    }
+
+    /* Progress Bar for Continue Watching */
+    .progress-track {
+      position: absolute;
+      left: 20px;
+      right: 20px;
+      bottom: 18px;
+      height: 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.24);
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: #fff;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.7);
+    }
+
+    .card-badge {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: rgba(10, 12, 16, 0.68);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(12px);
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .media-info {
+      margin-top: 14px;
+      padding: 0 4px;
+    }
+
+    .media-title {
+      font-size: 25px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .media-meta {
+      margin-top: 4px;
+      font-size: 19px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ===== BAND 4: tvOS LIQUID GLASS APP DOCK ===== */
+    .dock-band {
+      width: 1920px;
+      padding: 28px 80px 36px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .dock-platter {
+      display: inline-flex;
+      align-items: center;
+      gap: 38px;
+      padding: 34px 44px;
+      border-radius: 44px;
+      background: rgba(28, 30, 38, 0.56);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-top-color: rgba(255, 255, 255, 0.28);
+      backdrop-filter: blur(36px) saturate(185%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18),
+        0 26px 70px rgba(0, 0, 0, 0.55);
+    }
+
+    .app-tile {
+      appearance: none;
+      border: 0;
+      width: 224px;
+      height: 126px;
+      border-radius: 22px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+      transition: transform 260ms var(--ease-spring), box-shadow 260ms ease;
+    }
+
+    .app-tile img {
+      max-width: 72%;
+      max-height: 58%;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .app-tile:hover,
+    .app-tile.is-focused {
+      transform: scale(1.18) translateY(-6px);
+      box-shadow:
+        0 0 0 3px rgba(255, 255, 255, 0.92),
+        0 24px 48px rgba(0, 0, 0, 0.65);
+      z-index: 4;
+    }
+
+    /* ===== BAND 5: ENTRADAS & ATALHOS ===== */
+    .shortcuts-band {
+      width: 1920px;
+      padding: 12px 80px 30px;
+      display: flex;
+      gap: 36px;
+      align-items: flex-start;
+    }
+
+    .shortcut-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .shortcut-group.grow {
+      flex: 1;
+    }
+
+    .group-label {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      padding-left: 4px;
+    }
+
+    .shortcut-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .shortcut-tile {
+      appearance: none;
+      width: 228px;
+      height: 118px;
+      border-radius: 22px;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-glass);
+      border-top-color: rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(24px) saturate(160%);
+      color: #f5f5f7;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: transform 240ms var(--ease-spring), background 180ms ease, color 180ms ease, box-shadow 220ms ease;
+    }
+
+    .shortcut-tile span {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .shortcut-tile svg {
+      width: 30px;
+      height: 30px;
+    }
+
+    .shortcut-tile:hover,
+    .shortcut-tile.is-focused {
+      background: #f5f5f7;
+      color: #0b0c10;
+      border-color: #fff;
+      transform: scale(1.07) translateY(-3px);
+      box-shadow: 0 20px 44px rgba(0, 0, 0, 0.55);
+    }
+
+    /* ===== BAND 6: WIDGETS (CLIMA + CALENDÁRIO) ===== */
+    .widgets-band {
+      width: 1920px;
+      padding: 8px 80px 40px;
+      display: grid;
+      grid-template-columns: 1.32fr 1fr;
+      gap: 28px;
+    }
+
+    .widget-card {
+      height: 312px;
+      border-radius: 28px;
+      padding: 30px 36px;
+      background: var(--surface-glass);
+      border: 1px solid var(--border-glass);
+      border-top-color: rgba(255, 255, 255, 0.24);
+      backdrop-filter: blur(28px) saturate(170%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 20px 50px rgba(0, 0, 0, 0.42);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Weather Widget */
+    .weather-grid {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      height: 100%;
+      gap: 32px;
+    }
+
+    .weather-now {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 270px;
+    }
+
+    .weather-city {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .weather-temp-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .weather-temp {
+      font-size: 86px;
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: #fff;
+    }
+
+    .weather-cond {
+      font-size: 26px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .weather-hi-lo {
+      font-size: 19px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .weather-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding-left: 28px;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .weather-hours {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      padding-top: 12px;
+    }
+
+    .hour-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .hour-label {
+      font-size: 18px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .hour-temp {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .weather-sun {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      font-size: 18px;
+      color: var(--text-secondary);
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .weather-sun span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Calendar Widget */
+    .cal-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .cal-month {
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: #fff;
+    }
+
+    .cal-today-label {
+      font-size: 19px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      row-gap: 8px;
+      text-align: center;
+      align-items: center;
+    }
+
+    .cal-dow {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding-bottom: 4px;
+    }
+
+    .cal-day {
+      font-size: 20px;
+      font-weight: 600;
+      color: rgba(245, 245, 247, 0.88);
+      height: 36px;
+      width: 36px;
+      margin: 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+    }
+
+    .cal-day.today {
+      background: var(--accent-red);
+      color: #fff;
+      font-weight: 800;
+      box-shadow: 0 4px 14px rgba(255, 59, 48, 0.5);
+    }
+
+    /* ===== TOAST FEEDBACK ===== */
+    .tv-toast {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%) translateY(24px);
+      opacity: 0;
+      z-index: 90;
+      padding: 16px 28px;
+      border-radius: var(--radius-pill);
+      background: rgba(20, 22, 29, 0.86);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(24px);
+      color: #fff;
+      font-size: 21px;
+      font-weight: 600;
+      pointer-events: none;
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.6);
+      transition: transform 280ms var(--ease-spring), opacity 220ms ease;
+    }
+
+    .tv-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bench" id="bench">
+    <!-- Floating PC Preview Toolbar -->
+    <div class="bench-bar" role="toolbar" aria-label="Controles do protótipo">
+      <span class="badge">HOME V2 · UI/UX</span>
+      <button type="button" class="bench-btn active" id="btnTvMode">Modo TV (16:9)</button>
+      <button type="button" class="bench-btn" id="btnFullMode">Visão Completa</button>
+      <div class="bench-hints">
+        <span><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> D-Pad</span>
+        <span><kbd>Enter</kbd> OK</span>
+        <span><kbd>Esc</kbd> Topo</span>
+      </div>
+    </div>
+
+    <!-- 1920x1080 TV Viewport -->
+    <main class="tv-frame" id="tvFrame" aria-label="Tela inicial PaçocaOS TV">
+      <div class="ambient-bg" id="ambientBg"></div>
+
+      <!-- Fixed Top-Right Status Bar -->
+      <header class="status-capsule" aria-label="Barra de status">
+        <span class="status-clock" id="statusClock">07:25</span>
+        <div class="status-icons">
+          <button type="button" class="status-icon-btn" data-zone="status" data-index="0" aria-label="Controle remoto conectado" title="Controle conectado">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="8" r="2"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>
+          </button>
+          <button type="button" class="status-icon-btn" data-zone="status" data-index="1" aria-label="Wi-Fi conectado" title="Wi-Fi">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+          </button>
+          <button type="button" class="status-icon-btn" data-zone="status" data-index="2" aria-label="Início" title="Início">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </button>
+          <button type="button" class="status-pill-btn" data-zone="status" data-index="3" aria-label="Ajustes rápidos do projetor" title="Projetor / Controle">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="4"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="1" fill="currentColor"/></svg>
+          </button>
+          <button type="button" class="profile-badge" data-zone="status" data-index="4" aria-label="Perfil Paçoca">P</button>
+        </div>
+      </header>
+
+      <!-- Vertically Scrolling TV Canvas -->
+      <div class="tv-canvas" id="tvCanvas">
+
+        <!-- BAND 1: HERO SPOTLIGHT (1920x1080 Featured Movie) -->
+        <section class="hero-section" id="secHero" aria-label="Destaque principal">
+          <div class="hero-backdrop">
+            <img id="heroImg" width="1920" height="1080" alt="Imagem de destaque do filme" src="" />
+            <div class="hero-scrim-left"></div>
+            <div class="hero-scrim-bottom"></div>
+          </div>
+
+          <div class="hero-content">
+            <div class="hero-meta-row" id="heroMeta">
+              <span class="hero-pill-tag">Em destaque</span>
+              <span class="hero-match">88% Relevante</span>
+              <span>· 2024 · Ficção Científica · ★ 6.8</span>
+            </div>
+            <h1 class="hero-title" id="heroTitle">Star Wars: Skeleton Crew</h1>
+
+            <div class="hero-lower-row">
+              <div class="hero-synopsis-block">
+                <div class="hero-synopsis-label">Sinopse</div>
+                <p class="hero-synopsis" id="heroSynopsis">
+                  Quatro crianças fazem uma descoberta misteriosa em seu planeta aparentemente seguro e acabam perdidas em uma galáxia estranha e perigosa, buscando o caminho de volta para casa.
+                </p>
+              </div>
+              <div class="hero-actions">
+                <button type="button" class="hero-btn hero-btn-secondary" id="btnSave" data-zone="hero" data-index="0">
+                  <svg id="saveIcon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                  <span id="saveLabel">Salvar</span>
+                </button>
+                <button type="button" class="hero-btn hero-btn-primary is-focused" id="btnWatch" data-zone="hero" data-index="1">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+                  <span>Assistir</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-dots" id="heroDots" aria-hidden="true"></div>
+        </section>
+
+        <!-- BAND 2: PARA VOCÊ -->
+        <section class="section-band" id="secForYou" aria-label="Para você">
+          <div class="section-header">
+            <h2 class="section-title">Para você</h2>
+          </div>
+
+          <div class="tabs-row" role="tablist" aria-label="Categorias">
+            <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-zone="tabs" data-index="0" data-tab="explore">Explorar</button>
+            <button type="button" class="tab-btn" role="tab" aria-selected="false" data-zone="tabs" data-index="1" data-tab="movies">Filmes</button>
+            <button type="button" class="tab-btn" role="tab" aria-selected="false" data-zone="tabs" data-index="2" data-tab="series">Séries</button>
+            <button type="button" class="tab-btn" role="tab" aria-selected="false" data-zone="tabs" data-index="3" data-tab="animes">Animes</button>
+          </div>
+
+          <div class="carousel-viewport">
+            <div class="carousel-track" id="forYouTrack"></div>
+          </div>
+        </section>
+
+        <!-- BAND 3: CONTINUAR ASSISTINDO -->
+        <section class="section-band" id="secContinue" aria-label="Continuar Assistindo">
+          <div class="section-header">
+            <h2 class="section-title">Continuar Assistindo</h2>
+          </div>
+
+          <div class="carousel-viewport">
+            <div class="carousel-track" id="continueTrack"></div>
+          </div>
+        </section>
+
+        <!-- BAND 4: DOCK DE APPS (LIQUID GLASS) -->
+        <section class="dock-band" id="secDock" aria-label="Aplicativos favoritos">
+          <div class="dock-platter" id="dockPlatter"></div>
+        </section>
+
+        <!-- BAND 5: ENTRADAS & ATALHOS -->
+        <section class="shortcuts-band" id="secShortcuts" aria-label="Entradas e Atalhos">
+          <div class="shortcut-group">
+            <div class="group-label">Entradas</div>
+            <div class="shortcut-row" id="inputsRow"></div>
+          </div>
+          <div class="shortcut-group grow">
+            <div class="group-label">Atalhos</div>
+            <div class="shortcut-row" id="shortcutsRow"></div>
+          </div>
+        </section>
+
+        <!-- BAND 6: WIDGETS (CLIMA + CALENDÁRIO) -->
+        <section class="widgets-band" id="secWidgets" aria-label="Clima e Calendário">
+          <!-- Weather Card -->
+          <div class="widget-card">
+            <div class="weather-grid">
+              <div class="weather-now">
+                <div class="weather-city">Foz do Iguaçu</div>
+                <div class="weather-temp-row">
+                  <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" fill="rgba(255,255,255,0.9)" stroke="none"/><path d="M8 20v2"/><path d="M12 20v2"/><path d="M16 20v2"/></svg>
+                  <div class="weather-temp">24°</div>
+                </div>
+                <div>
+                  <div class="weather-cond">Garoa</div>
+                  <div class="weather-hi-lo">Máx. 32° &nbsp; Mín. 22°</div>
+                </div>
+              </div>
+
+              <div class="weather-right">
+                <div class="weather-hours" id="weatherHours"></div>
+                <div class="weather-sun">
+                  <span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>
+                    Nascer 5:40
+                  </span>
+                  <span>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m16 6-4 4-4-4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>
+                    Pôr do sol 19:06
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Apple Calendar Card -->
+          <div class="widget-card">
+            <div class="cal-header">
+              <div class="cal-month">NOVEMBRO 2026</div>
+              <div class="cal-today-label">Quinta-feira, 19</div>
+            </div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+        </section>
+
+      </div>
+
+      <div class="tv-toast" id="tvToast" role="status" aria-live="polite"></div>
+    </main>
+  </div>
+
+  <script>
+    // ===== DATA CATALOG =====
+    const CATALOG = {
+      explore: [
+        {
+          id: "skeleton-crew",
+          title: "Star Wars: Skeleton Crew",
+          meta: "88% Relevante · 2024 · ★ 6.8",
+          match: "88% Relevante",
+          extra: "· 2024 · Aventura · ★ 6.8",
+          synopsis: "Quatro crianças fazem uma descoberta misteriosa em seu planeta aparentemente seguro e acabam perdidas em uma galáxia estranha e perigosa, buscando o caminho de volta para casa.",
+          backdrop: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(42, 76, 128, 0.36)"
+        },
+        {
+          id: "buddy",
+          title: "Buddy",
+          meta: "Novo Lançamento · 2026 · Terror",
+          match: "92% Relevante",
+          extra: "· 2026 · Suspense · ★ 7.4",
+          synopsis: "Quando um antigo mascote de programa infantil volta a assombrar uma cidade isolada, um grupo de amigos precisa desvendar o segredo por trás das fitas perdidas.",
+          backdrop: "https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(130, 48, 34, 0.34)"
+        },
+        {
+          id: "derry",
+          title: "Bem-Vindos a Derry",
+          meta: "Novo Lançamento · HBO · ★ 8.1",
+          match: "94% Relevante",
+          extra: "· 2025 · Drama / Terror · ★ 8.1",
+          synopsis: "Ambientada nos anos 1960, a série revela as origens sombrias da maldição que assombra a pequena cidade de Derry antes dos eventos de It.",
+          backdrop: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(38, 72, 62, 0.36)"
+        },
+        {
+          id: "dune",
+          title: "Duna: Parte Dois",
+          meta: "96% Relevante · 2024 · ★ 8.6",
+          match: "96% Relevante",
+          extra: "· 2024 · Ficção Científica · ★ 8.6",
+          synopsis: "Paul Atreides une-se a Chani e aos Fremen em uma jornada de vingança contra os conspiradores que destruíram sua família, diante de uma escolha entre o amor e o destino do universo.",
+          backdrop: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(156, 98, 42, 0.34)"
+        },
+        {
+          id: "blade-runner",
+          title: "Blade Runner 2049",
+          meta: "91% Relevante · 2017 · ★ 8.0",
+          match: "91% Relevante",
+          extra: "· 2017 · Neo-Noir · ★ 8.0",
+          synopsis: "Um jovem caçador de androides descobre um segredo enterrado há décadas capaz de mergulhar o que resta da sociedade no caos total.",
+          backdrop: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(32, 92, 118, 0.36)"
+        }
+      ],
+      movies: [
+        {
+          id: "interstellar",
+          title: "Interestelar",
+          meta: "98% Relevante · 2014 · ★ 8.7",
+          match: "98% Relevante",
+          extra: "· 2014 · Ficção Científica · ★ 8.7",
+          synopsis: "Uma equipe de exploradores viaja através de um buraco de minhoca no espaço na tentativa de garantir a sobrevivência da humanidade.",
+          backdrop: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(36, 62, 112, 0.38)"
+        },
+        {
+          id: "oppenheimer",
+          title: "Oppenheimer",
+          meta: "95% Relevante · 2023 · ★ 8.3",
+          match: "95% Relevante",
+          extra: "· 2023 · Biografia / Drama · ★ 8.3",
+          synopsis: "A história do físico teórico J. Robert Oppenheimer e o dilema moral que marcou a criação da bomba atômica durante a Segunda Guerra Mundial.",
+          backdrop: "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(164, 72, 26, 0.36)"
+        },
+        {
+          id: "arrival",
+          title: "A Chegada",
+          meta: "93% Relevante · 2016 · ★ 7.9",
+          match: "93% Relevante",
+          extra: "· 2016 · Sci-Fi / Drama · ★ 7.9",
+          synopsis: "Quando naves alienígenas pousam em doze pontos do planeta, uma linguista é recrutada para decifrar a comunicação antes que o mundo entre em guerra.",
+          backdrop: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(62, 82, 92, 0.36)"
+        },
+        {
+          id: "madmax",
+          title: "Furiosa: Uma Saga Mad Max",
+          meta: "89% Relevante · 2024 · ★ 7.5",
+          match: "89% Relevante",
+          extra: "· 2024 · Ação · ★ 7.5",
+          synopsis: "Arrancada do Lugar Verde de Muitas Mães, a jovem Furiosa precisa sobreviver ao deserto implacável enquanto planeja seu retorno para casa.",
+          backdrop: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(148, 86, 36, 0.34)"
+        }
+      ],
+      series: [
+        {
+          id: "severance",
+          title: "Ruptura",
+          meta: "97% Relevante · Apple TV+ · ★ 8.7",
+          match: "97% Relevante",
+          extra: "· 2025 · Suspense / Sci-Fi · ★ 8.7",
+          synopsis: "Mark lidera uma equipe cujas memórias foram cirurgicamente divididas entre a vida profissional e pessoal — até um mistério colocar tudo em xeque.",
+          backdrop: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(38, 84, 96, 0.36)"
+        },
+        {
+          id: "silo",
+          title: "Silo",
+          meta: "93% Relevante · Apple TV+ · ★ 8.1",
+          match: "93% Relevante",
+          extra: "· 2024 · Mistério · ★ 8.1",
+          synopsis: "Em um futuro tóxico e arruinado, milhares de pessoas vivem em um gigantesco silo subterrâneo repleto de segredos fatais.",
+          backdrop: "https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(86, 78, 66, 0.36)"
+        },
+        {
+          id: "andor",
+          title: "Andor",
+          meta: "95% Relevante · 2025 · ★ 8.4",
+          match: "95% Relevante",
+          extra: "· 2025 · Ficção Científica · ★ 8.4",
+          synopsis: "Em uma era repleta de perigo e intriga, Cassian Andor embarca em um caminho destinado a transformá-lo em herói da Rebelião.",
+          backdrop: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(44, 68, 98, 0.36)"
+        }
+      ],
+      animes: [
+        {
+          id: "frieren",
+          title: "Frieren e a Jornada para o Além",
+          meta: "99% Relevante · 2024 · ★ 9.1",
+          match: "99% Relevante",
+          extra: "· 2024 · Fantasia · ★ 9.1",
+          synopsis: "Após uma missão de dez anos para derrotar o Rei Demônio, a maga elfa Frieren embarca em uma jornada sensível para compreender o valor do tempo humano.",
+          backdrop: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(42, 92, 86, 0.36)"
+        },
+        {
+          id: "dandadan",
+          title: "DAN DA DAN",
+          meta: "Novo Episódio · 2025 · ★ 8.6",
+          match: "94% Relevante",
+          extra: "· 2025 · Ação / Sobrenatural · ★ 8.6",
+          synopsis: "Momo acredita em fantasmas mas não em alienígenas; Okarun acredita no oposto. Uma aposta prova que ambos estavam certos de forma caótica.",
+          backdrop: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(116, 48, 86, 0.34)"
+        },
+        {
+          id: "cyberpunk",
+          title: "Cyberpunk: Mercenários",
+          meta: "95% Relevante · Studio Trigger · ★ 8.5",
+          match: "95% Relevante",
+          extra: "· 2022 · Cyberpunk · ★ 8.5",
+          synopsis: "Em uma Night City obcecada por modificações corporais, um jovem marginalizado decide sobreviver tornando-se um mercenário fora da lei.",
+          backdrop: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1920&q=85",
+          poster: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=900&q=80",
+          tint: "rgba(154, 126, 26, 0.34)"
+        }
+      ]
+    };
+
+    const CONTINUE_WATCHING = [
+      {
+        id: "rupaul",
+        title: "RuPaul's Drag Race",
+        meta: "T10 E1 · 18% · faltam 63 min",
+        progress: 18,
+        backdrop: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1600&q=85",
+        poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=80",
+        tint: "rgba(138, 36, 108, 0.36)"
+      },
+      {
+        id: "cabinet",
+        title: "Guillermo del Toro's Cabinet of Curiosities",
+        meta: "T1 E2 · 45% · faltam 28 min",
+        progress: 45,
+        backdrop: "https://images.unsplash.com/photo-1505635552518-3448ff116af3?auto=format&fit=crop&w=1600&q=85",
+        poster: "https://images.unsplash.com/photo-1505635552518-3448ff116af3?auto=format&fit=crop&w=900&q=80",
+        tint: "rgba(62, 74, 88, 0.36)"
+      },
+      {
+        id: "altered-carbon",
+        title: "Altered Carbon",
+        meta: "T1 E1 · 12% · faltam 51 min",
+        progress: 12,
+        backdrop: "https://images.unsplash.com/photo-1518709766631-a6a7f45921c3?auto=format&fit=crop&w=1600&q=85",
+        poster: "https://images.unsplash.com/photo-1518709766631-a6a7f45921c3?auto=format&fit=crop&w=900&q=80",
+        tint: "rgba(28, 92, 96, 0.36)"
+      },
+      {
+        id: "dark",
+        title: "Dark",
+        meta: "T2 E5 · 68% · faltam 17 min",
+        progress: 68,
+        backdrop: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1600&q=85",
+        poster: "https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=900&q=80",
+        tint: "rgba(42, 62, 52, 0.36)"
+      }
+    ];
+
+    const DOCK_APPS = [
+      { id: "netflix", name: "Netflix", logo: "app/assets/logos/netflix.png", bg: "linear-gradient(180deg, #FFFFFF, #ECECEF)" },
+      { id: "applemusic", name: "Apple Music", logo: "app/assets/logos/applemusic.png", bg: "linear-gradient(180deg, #FC5C74, #FA233B)" },
+      { id: "appletv", name: "Apple TV", logo: "app/assets/logos/appletv.png", bg: "linear-gradient(180deg, #28282C, #0A0A0C)" },
+      { id: "youtube", name: "YouTube", logo: "app/assets/logos/youtube.png", bg: "linear-gradient(180deg, #FFFFFF, #ECECEF)" },
+      { id: "twitch", name: "Twitch", logo: "app/assets/logos/twitch.png", bg: "linear-gradient(180deg, #9146FF, #6441A5)" },
+      { id: "arcade", name: "Apple Arcade", logo: "app/assets/logos/arcade.png", bg: "linear-gradient(180deg, #FA5E31, #F52654)" }
+    ];
+
+    const SHORTCUTS = [
+      {
+        group: "inputs",
+        id: "hdmi1",
+        label: "HDMI 1",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16v6l-2 2H6l-2-2V7Z"/><path d="M8 15v3"/><path d="M16 15v3"/><line x1="8" y1="11" x2="16" y2="11"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "all-apps",
+        label: "Todos os Apps",
+        icon: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "home-settings",
+        label: "Ajustes do Início",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.25.4-1.51 1Z"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "tv-settings",
+        label: "Ajustes da TV",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "positions",
+        label: "Posições",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="1.5" fill="currentColor"/><circle cx="15" cy="12" r="1.5" fill="currentColor"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "keystone",
+        label: "Keystone",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4 6 20 4 18 20 6 18 4 6"/></svg>'
+      },
+      {
+        group: "shortcuts",
+        id: "bluetooth",
+        label: "Bluetooth",
+        icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg>'
+      }
+    ];
+
+    const WEATHER_HOURS = [
+      { h: "08h", t: "26°", rain: false },
+      { h: "09h", t: "26°", rain: false },
+      { h: "10h", t: "28°", rain: true },
+      { h: "11h", t: "29°", rain: true },
+      { h: "12h", t: "30°", rain: false },
+      { h: "13h", t: "31°", rain: true }
+    ];
+
+    // ===== STATE =====
+    const ZONES = ["status", "hero", "tabs", "foryou", "continue", "dock", "shortcuts"];
+    const state = {
+      mode: "tv", // "tv" | "full"
+      zone: "hero",
+      indices: { status: 4, hero: 1, tabs: 0, foryou: 0, continue: 0, dock: 0, shortcuts: 1 },
+      activeTab: "explore",
+      savedIds: new Set(),
+      toastTimer: null
+    };
+
+    // Vertical scroll camera stops in TV Mode (1920x1080)
+    const ZONE_SCROLL_Y = {
+      status: 0,
+      hero: 0,
+      tabs: 640,
+      foryou: 690,
+      continue: 1320,
+      dock: 1620,
+      shortcuts: 1790
+    };
+
+    // ===== RENDERERS =====
+    function renderHero(item) {
+      const heroImg = document.getElementById("heroImg");
+      heroImg.style.opacity = "0.6";
+      setTimeout(() => {
+        heroImg.src = item.backdrop;
+        heroImg.alt = item.title;
+        heroImg.style.opacity = "1";
+      }, 90);
+
+      document.getElementById("heroTitle").textContent = item.title;
+      document.getElementById("heroSynopsis").textContent = item.synopsis;
+      document.getElementById("heroMeta").innerHTML = `
+        <span class="hero-pill-tag">Em destaque</span>
+        <span class="hero-match">${item.match}</span>
+        <span>${item.extra}</span>
+      `;
+      document.getElementById("ambientBg").style.setProperty("--ambient-tint", item.tint || "rgba(42, 76, 128, 0.36)");
+
+      const isSaved = state.savedIds.has(item.id);
+      const btnSave = document.getElementById("btnSave");
+      btnSave.classList.toggle("saved", isSaved);
+      document.getElementById("saveLabel").textContent = isSaved ? "Salvo" : "Salvar";
+
+      // Hero dots for current tab items
+      const list = CATALOG[state.activeTab];
+      const dotsEl = document.getElementById("heroDots");
+      dotsEl.innerHTML = list.map((m, i) =>
+        `<span class="hero-dot ${m.id === item.id ? "active" : ""}"></span>`
+      ).join("");
+    }
+
+    function renderForYou() {
+      const list = CATALOG[state.activeTab];
+      const activeIdx = Math.min(state.indices.foryou, list.length - 1);
+      state.indices.foryou = activeIdx;
+      const track = document.getElementById("forYouTrack");
+
+      track.innerHTML = list.map((item, i) => {
+        const expanded = i === activeIdx;
+        const focused = state.zone === "foryou" && i === activeIdx;
+        return `
+          <button type="button" class="media-card ${expanded ? "expanded" : ""} ${focused ? "is-focused" : ""}"
+            data-zone="foryou" data-index="${i}">
+            <div class="media-poster">
+              <img src="${expanded ? item.backdrop : item.poster}" alt="${item.title}" width="${expanded ? 752 : 296}" height="424" loading="lazy" />
+            </div>
+            <div class="media-info">
+              <div class="media-title">${item.title}</div>
+              <div class="media-meta">${item.meta}</div>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      const shift = Math.max(0, activeIdx - 1) * 328;
+      track.style.transform = `translateX(-${shift}px)`;
+    }
+
+    function renderContinue() {
+      const activeIdx = Math.min(state.indices.continue, CONTINUE_WATCHING.length - 1);
+      state.indices.continue = activeIdx;
+      const track = document.getElementById("continueTrack");
+
+      track.innerHTML = CONTINUE_WATCHING.map((item, i) => {
+        const expanded = i === activeIdx;
+        const focused = state.zone === "continue" && i === activeIdx;
+        return `
+          <button type="button" class="media-card ${expanded ? "expanded" : ""} ${focused ? "is-focused" : ""}"
+            data-zone="continue" data-index="${i}">
+            <div class="media-poster">
+              <img src="${expanded ? item.backdrop : item.poster}" alt="${item.title}" width="${expanded ? 752 : 296}" height="424" loading="lazy" />
+              <div class="progress-track"><div class="progress-fill" style="width:${item.progress}%"></div></div>
+            </div>
+            <div class="media-info">
+              <div class="media-title">${item.title}</div>
+              <div class="media-meta">${item.meta}</div>
+            </div>
+          </button>
+        `;
+      }).join("");
+
+      const shift = Math.max(0, activeIdx - 1) * 328;
+      track.style.transform = `translateX(-${shift}px)`;
+    }
+
+    function renderDock() {
+      const platter = document.getElementById("dockPlatter");
+      platter.innerHTML = DOCK_APPS.map((app, i) => `
+        <button type="button" class="app-tile ${state.zone === "dock" && state.indices.dock === i ? "is-focused" : ""}"
+          style="background:${app.bg}" data-zone="dock" data-index="${i}" aria-label="Abrir ${app.name}" title="${app.name}">
+          <img src="${app.logo}" alt="${app.name}" width="160" height="72" />
+        </button>
+      `).join("");
+    }
+
+    function renderShortcuts() {
+      const inputsRow = document.getElementById("inputsRow");
+      const shortcutsRow = document.getElementById("shortcutsRow");
+      inputsRow.innerHTML = "";
+      shortcutsRow.innerHTML = "";
+
+      SHORTCUTS.forEach((item, i) => {
+        const focused = state.zone === "shortcuts" && state.indices.shortcuts === i;
+        const html = `
+          <button type="button" class="shortcut-tile ${focused ? "is-focused" : ""}" data-zone="shortcuts" data-index="${i}">
+            ${item.icon}
+            <span>${item.label}</span>
+          </button>
+        `;
+        if (item.group === "inputs") inputsRow.insertAdjacentHTML("beforeend", html);
+        else shortcutsRow.insertAdjacentHTML("beforeend", html);
+      });
+    }
+
+    function renderWeatherAndCalendar() {
+      const hoursEl = document.getElementById("weatherHours");
+      hoursEl.innerHTML = WEATHER_HOURS.map(item => `
+        <div class="hour-col">
+          <div class="hour-label">${item.h}</div>
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 18H9a6 6 0 1 1 5.7-7.8h1.8a3.8 3.8 0 1 1 1 7.8Z" fill="rgba(255,255,255,0.88)" stroke="none"/>
+            ${item.rain ? '<path d="M9 20v2"/><path d="M13 20v2"/><path d="M17 20v2"/>' : ''}
+          </svg>
+          <div class="hour-temp">${item.t}</div>
+        </div>
+      `).join("");
+
+      const calEl = document.getElementById("calGrid");
+      const dows = ["D", "S", "T", "Q", "Q", "S", "S"];
+      let html = dows.map(d => `<div class="cal-dow">${d}</div>`).join("");
+      // Novembro 2026 starts on Sunday (index 0) and has 30 days
+      for (let day = 1; day <= 30; day++) {
+        html += `<div class="cal-day ${day === 19 ? "today" : ""}">${day}</div>`;
+      }
+      calEl.innerHTML = html;
+    }
+
+    // ===== FOCUS & CAMERA ENGINE =====
+    function syncFocusUI() {
+      document.querySelectorAll(".is-focused").forEach(el => el.classList.remove("is-focused"));
+
+      // Re-render dynamic lists to update expanded & focused states cleanly
+      renderForYou();
+      renderContinue();
+      renderDock();
+      renderShortcuts();
+
+      // Update static zones (status, hero, tabs)
+      const target = document.querySelector(`[data-zone="${state.zone}"][data-index="${state.indices[state.zone]}"]`);
+      if (target) target.classList.add("is-focused");
+
+      // Update Hero when focusing a card in "Para você"
+      if (state.zone === "foryou") {
+        const item = CATALOG[state.activeTab][state.indices.foryou];
+        if (item) renderHero(item);
+      } else if (state.zone === "continue") {
+        const item = CONTINUE_WATCHING[state.indices.continue];
+        if (item) document.getElementById("ambientBg").style.setProperty("--ambient-tint", item.tint);
+      }
+
+      // Smooth TV camera scroll
+      if (state.mode === "tv") {
+        const canvas = document.getElementById("tvCanvas");
+        const maxScroll = Math.max(0, canvas.scrollHeight - 1080);
+        const y = Math.min(ZONE_SCROLL_Y[state.zone] || 0, maxScroll);
+        canvas.style.transform = `translateY(-${y}px)`;
+      }
+    }
+
+    function getZoneLength(zone) {
+      if (zone === "status") return 5;
+      if (zone === "hero") return 2;
+      if (zone === "tabs") return 4;
+      if (zone === "foryou") return CATALOG[state.activeTab].length;
+      if (zone === "continue") return CONTINUE_WATCHING.length;
+      if (zone === "dock") return DOCK_APPS.length;
+      if (zone === "shortcuts") return SHORTCUTS.length;
+      return 1;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("tvToast");
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(state.toastTimer);
+      state.toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    function activateCurrent() {
+      const z = state.zone;
+      const idx = state.indices[z];
+
+      if (z === "hero") {
+        const currentItem = CATALOG[state.activeTab][state.indices.foryou] || CATALOG[state.activeTab][0];
+        if (idx === 0) {
+          if (state.savedIds.has(currentItem.id)) {
+            state.savedIds.delete(currentItem.id);
+            showToast(`Removido dos salvos: ${currentItem.title}`);
+          } else {
+            state.savedIds.add(currentItem.id);
+            showToast(`Salvo na sua lista: ${currentItem.title}`);
+          }
+          renderHero(currentItem);
+        } else {
+          showToast(`▶ Reproduzindo ${currentItem.title}…`);
+        }
+      } else if (z === "tabs") {
+        const tabKeys = ["explore", "movies", "series", "animes"];
+        selectTab(tabKeys[idx], idx);
+      } else if (z === "foryou") {
+        const item = CATALOG[state.activeTab][idx];
+        showToast(`▶ Abrindo ${item.title}…`);
+      } else if (z === "continue") {
+        const item = CONTINUE_WATCHING[idx];
+        showToast(`▶ Retomando ${item.title} (${item.meta})…`);
+      } else if (z === "dock") {
+        showToast(`Abrindo ${DOCK_APPS[idx].name}…`);
+      } else if (z === "shortcuts") {
+        showToast(`Atalho: ${SHORTCUTS[idx].label}`);
+      } else if (z === "status") {
+        const labels = ["Controle Remoto", "Wi-Fi Conectado", "Tela Inicial", "Ajustes do Projetor", "Perfil Paçoca"];
+        showToast(labels[idx] || "Status");
+      }
+    }
+
+    function selectTab(tabKey, tabIdx) {
+      state.activeTab = tabKey;
+      state.indices.tabs = tabIdx;
+      state.indices.foryou = 0;
+
+      document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+        const active = i === tabIdx;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-selected", active ? "true" : "false");
+      });
+
+      renderHero(CATALOG[tabKey][0]);
+      syncFocusUI();
+    }
+
+    // ===== KEYBOARD D-PAD NAVIGATION =====
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", "Escape", "Backspace"].includes(e.key)) {
+        e.preventDefault();
+      }
+
+      const zIdx = ZONES.indexOf(state.zone);
+      if (e.key === "ArrowDown") {
+        if (zIdx < ZONES.length - 1) {
+          state.zone = ZONES[zIdx + 1];
+          syncFocusUI();
+        }
+      } else if (e.key === "ArrowUp") {
+        if (zIdx > 0) {
+          state.zone = ZONES[zIdx - 1];
+          syncFocusUI();
+        }
+      } else if (e.key === "ArrowRight") {
+        const max = getZoneLength(state.zone) - 1;
+        state.indices[state.zone] = Math.min(max, state.indices[state.zone] + 1);
+        syncFocusUI();
+      } else if (e.key === "ArrowLeft") {
+        state.indices[state.zone] = Math.max(0, state.indices[state.zone] - 1);
+        syncFocusUI();
+      } else if (e.key === "Enter") {
+        activateCurrent();
+      } else if (e.key === "Escape" || e.key === "Backspace") {
+        state.zone = "hero";
+        state.indices.hero = 1;
+        syncFocusUI();
+        if (state.mode === "full") document.getElementById("bench").scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+
+    // ===== MOUSE INTERACTION (CLICK & WHEEL) =====
+    document.getElementById("tvFrame").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-zone]");
+      if (!btn) return;
+      state.zone = btn.dataset.zone;
+      state.indices[state.zone] = Number(btn.dataset.index);
+      syncFocusUI();
+      activateCurrent();
+    });
+
+    document.getElementById("tvFrame").addEventListener("wheel", (e) => {
+      if (state.mode !== "tv") return;
+      e.preventDefault();
+      const zIdx = ZONES.indexOf(state.zone);
+      if (e.deltaY > 18 && zIdx < ZONES.length - 1) {
+        state.zone = ZONES[zIdx + 1];
+        syncFocusUI();
+      } else if (e.deltaY < -18 && zIdx > 0) {
+        state.zone = ZONES[zIdx - 1];
+        syncFocusUI();
+      }
+    }, { passive: false });
+
+    // ===== RESPONSIVE 1920x1080 SCALING =====
+    function scaleStage() {
+      const frame = document.getElementById("tvFrame");
+      const bench = document.getElementById("bench");
+
+      if (state.mode === "tv") {
+        bench.classList.remove("full-mode");
+        const scale = Math.min((window.innerWidth - 28) / 1920, (window.innerHeight - 28) / 1080);
+        frame.style.transform = `scale(${scale})`;
+        frame.style.marginBottom = "0px";
+      } else {
+        bench.classList.add("full-mode");
+        const scale = Math.min((window.innerWidth - 48) / 1920, 0.85);
+        frame.style.transform = `scale(${scale})`;
+        // Adjust container height so scrolling stops cleanly at the bottom
+        const fullHeight = document.getElementById("tvCanvas").scrollHeight;
+        frame.style.height = `${fullHeight}px`;
+        frame.style.marginBottom = `-${fullHeight * (1 - scale)}px`;
+      }
+    }
+
+    document.getElementById("btnTvMode").addEventListener("click", () => {
+      state.mode = "tv";
+      document.getElementById("btnTvMode").classList.add("active");
+      document.getElementById("btnFullMode").classList.remove("active");
+      document.getElementById("tvFrame").style.height = "1080px";
+      scaleStage();
+      syncFocusUI();
+    });
+
+    document.getElementById("btnFullMode").addEventListener("click", () => {
+      state.mode = "full";
+      document.getElementById("btnFullMode").classList.add("active");
+      document.getElementById("btnTvMode").classList.remove("active");
+      scaleStage();
+    });
+
+    window.addEventListener("resize", scaleStage);
+
+    // ===== INIT =====
+    renderWeatherAndCalendar();
+    renderHero(CATALOG.explore[0]);
+    syncFocusUI();
+    scaleStage();
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- stnew: launcher-style bottom scrim, softer than the original. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="90"
+        android:startColor="#F00B0B0D"
+        android:centerColor="#990B0B0D"
+        android:centerY="0.45"
+        android:endColor="#000B0B0D"
+        android:type="linear" />
+</shape>
