@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BTV Smart Remote</title>
+  <style>
+    :root {
+      --bg: #090b0e;
+      --remote-bg: #1c1e24;
+      --remote-border: #2b2e37;
+      --btn-dark: #242730;
+      --btn-dark-active: #2f3442;
+      --accent-blue: #2563eb;
+      --accent-blue-glow: rgba(37, 99, 235, 0.45);
+      --red-power: #ef4444;
+      --amber: #f59e0b;
+      --text-muted: #64748b;
+      --text-sub: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      background-image: radial-gradient(circle at 50% 18%, #161c27 0%, #080a0e 100%);
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 18px 12px 30px;
+      overflow-x: hidden;
+    }
+    .top-device-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+    .remote-case {
+      width: 100%;
+      max-width: 360px;
+      background: var(--remote-bg);
+      border-radius: 46px;
+      border: 1px solid var(--remote-border);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.85), inset 0 1px 1px rgba(255,255,255,0.08), inset 0 -2px 6px rgba(0,0,0,0.5);
+      padding: 22px 20px 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    /* Status Capsule */
+    .status-capsule {
+      width: 100%;
+      background: #15171c;
+      border-radius: 20px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #22c55e;
+    }
+    .status-right {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    /* Button base styles */
+    .btn {
+      background: var(--btn-dark);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 50%;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      outline: none;
+      transition: transform 0.08s ease, background 0.08s ease, filter 0.08s ease;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+    }
+    .btn:active {
+      transform: scale(0.92);
+      filter: brightness(1.25);
+      background: var(--btn-dark-active);
+    }
+    /* Utility 4 Row */
+    .util-row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      gap: 10px;
+    }
+    .btn-circle {
+      width: 52px;
+      height: 52px;
+      font-size: 18px;
+    }
+    .btn-power {
+      color: var(--red-power);
+      box-shadow: 0 2px 10px rgba(239, 68, 68, 0.2);
+    }
+    /* Assistant Capsule Button */
+    .btn-assistant {
+      width: 100%;
+      height: 48px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+      border: none;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px var(--accent-blue-glow);
+    }
+    .btn-assistant:active {
+      transform: scale(0.96);
+      filter: brightness(1.15);
+    }
+    /* D-Pad */
+    .dpad-track {
+      position: relative;
+      width: 220px;
+      height: 220px;
+      background: #17181e;
+      border-radius: 50%;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.65), inset 0 2px 5px rgba(255,255,255,0.06);
+      border: 1px solid #282a34;
+      margin: 4px 0;
+    }
+    .dpad-arrow {
+      position: absolute;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.1s, transform 0.08s;
+    }
+    .dpad-arrow:active {
+      color: #38bdf8;
+      transform: scale(0.90);
+    }
+    .dpad-up    { top: 4px; left: 60px; width: 100px; height: 60px; }
+    .dpad-down  { bottom: 4px; left: 60px; width: 100px; height: 60px; }
+    .dpad-left  { top: 60px; left: 4px; width: 60px; height: 100px; }
+    .dpad-right { top: 60px; right: 4px; width: 60px; height: 100px; }
+    .dpad-center-ok {
+      position: absolute;
+      top: 66px;
+      left: 66px;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: #252832;
+      border: 2px solid #14151b;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: transform 0.08s, background 0.08s;
+    }
+    .dpad-center-ok:active {
+      transform: scale(0.93);
+      background: #1d4ed8;
+    }
+    /* Nav Row */
+    .nav-row {
+      display: flex;
+      width: 100%;
+      gap: 12px;
+    }
+    .btn-nav {
+      flex: 1;
+      height: 52px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      gap: 3px;
+    }
+    .btn-nav span.sub {
+      font-size: 9px;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    /* Volume & Mute Row */
+    .vol-row {
+      display: flex;
+      width: 100%;
+      gap: 12px;
+      align-items: center;
+    }
+    .vol-pill {
+      flex: 1;
+      height: 50px;
+      background: #17181e;
+      border-radius: 25px;
+      border: 1px solid #282a34;
+      display: flex;
+      padding: 3px;
+    }
+    .vol-sub-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #cbd5e1;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 22px;
+      cursor: pointer;
+      transition: background 0.1s, transform 0.08s;
+    }
+    .vol-sub-btn:active {
+      background: #282b36;
+      transform: scale(0.94);
+    }
+    .btn-mute {
+      width: 50px;
+      height: 50px;
+      font-size: 17px;
+      color: #ef4444;
+    }
+    /* Playback Row */
+    .media-row {
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+    }
+    .btn-media {
+      width: 52px;
+      height: 52px;
+      font-size: 16px;
+      color: var(--amber);
+    }
+    .btn-play-pause {
+      width: 64px;
+      height: 64px;
+      font-size: 20px;
+      color: #fff;
+      background: #2a2e3a;
+    }
+    /* Streaming Shortcuts Row */
+    .stream-row {
+      display: flex;
+      width: 100%;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .stream-btn {
+      flex: 1;
+      height: 38px;
+      border-radius: 10px;
+      border: none;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.08s, filter 0.08s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .stream-btn:active {
+      transform: scale(0.94);
+      filter: brightness(1.2);
+    }
+    .btn-yt { background: #e50914; }
+    .btn-nf { background: #141414; border: 1px solid #e50914; color: #e50914; }
+    .btn-pv { background: #00a8e1; }
+    .btn-dp { background: #113ccf; }
+    /* Keyboard Shortcuts Footer */
+    .footer-hints {
+      margin-top: 18px;
+      font-size: 10px;
+      color: #475569;
+      text-align: center;
+      max-width: 340px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-device-title">BTV 11 SMART TV PRO &middot; %IP%</div>
+
+  <div class="remote-case">
+    <!-- Status -->
+    <div class="status-capsule">
+      <div class="status-left">
+        <span class="status-dot"></span>
+        <span id="activeApp">FreeMyTV</span>
+      </div>
+      <div class="status-right">&middot; On</div>
+    </div>
+
+    <!-- 4 Circles (Grid, Settings, Keyboard, Power) -->
+    <div class="util-row">
+      <button class="btn btn-circle" onclick="send('menu')" title="Menu / Opções">⊞</button>
+      <button class="btn btn-circle" onclick="send('settings')" title="Ajustes">⚙</button>
+      <button class="btn btn-circle" onclick="typeText()" title="Digitar Texto">⌨</button>
+      <button class="btn btn-circle btn-power" onclick="send('power')" title="Power">⏻</button>
+    </div>
+
+    <!-- Google Assistant -->
+    <button class="btn-assistant" onclick="send('assistant')">
+      <span>🎙</span> Google Assistant
+    </button>
+
+    <!-- D-Pad -->
+    <div class="dpad-track">
+      <button class="dpad-arrow dpad-up" onclick="send('up')">▲</button>
+      <button class="dpad-arrow dpad-down" onclick="send('down')">▼</button>
+      <button class="dpad-arrow dpad-left" onclick="send('left')">◀</button>
+      <button class="dpad-arrow dpad-right" onclick="send('right')">▶</button>
+      <button class="dpad-center-ok" onclick="send('ok')">OK</button>
+    </div>
+
+    <!-- Navigation Row -->
+    <div class="nav-row">
+      <button class="btn btn-nav" onclick="send('back')">
+        <span>↩</span>
+        <span class="sub">BACK</span>
+      </button>
+      <button class="btn btn-nav" onclick="send('home')">
+        <span>⌂</span>
+        <span class="sub">HOME</span>
+      </button>
+      <button class="btn btn-nav" onclick="send('apps')">
+        <span>⧉</span>
+        <span class="sub">APPS</span>
+      </button>
+    </div>
+
+    <!-- Volume & Mute -->
+    <div class="vol-row">
+      <div class="vol-pill">
+        <button class="vol-sub-btn" onclick="send('voldown')">🔉</button>
+        <button class="vol-sub-btn" onclick="send('volup')">🔊</button>
+      </div>
+      <button class="btn btn-mute" onclick="send('mute')">🔇</button>
+    </div>
+
+    <!-- Media Controls -->
+    <div class="media-row">
+      <button class="btn btn-media" onclick="send('rewind')">⏪</button>
+      <button class="btn btn-play-pause" onclick="send('play')">⏯</button>
+      <button class="btn btn-media" onclick="send('forward')">⏩</button>
+    </div>
+
+    <!-- Streaming Shortcuts -->
+    <div class="stream-row">
+      <button class="stream-btn btn-yt" onclick="openApp('youtube')">YouTube</button>
+      <button class="stream-btn btn-nf" onclick="openApp('netflix')">Netflix</button>
+      <button class="stream-btn btn-pv" onclick="openApp('prime')">Prime</button>
+      <button class="stream-btn btn-dp" onclick="openApp('disney')">Disney+</button>
+    </div>
+  </div>
+
+  <div class="footer-hints">
+    Arrow keys &middot; Enter=OK &middot; Esc=Back &middot; H=Home &middot; Space=Play &middot; M=Mute
+  </div>
+
+  <script>
+    // AudioContext Synthetic Tactile Click for iOS Safari & Android
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function haptic() {
+      // 1. Native Vibration for Android
+      if (navigator.vibrate) {
+        try { navigator.vibrate(20); } catch(e){}
+      }
+      // 2. Synthetic Tactile Click via Web Audio for iOS
+      try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        // Mechanical click waveform: rapid pitch drop 180Hz -> 40Hz in 12ms
+        osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.012);
+        gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.015);
+      } catch(e){}
+    }
+
+    function send(k) {
+      haptic();
+      fetch('/key/' + k, { method: 'POST' }).catch(()=>{});
+    }
+
+    function openApp(app) {
+      haptic();
+      fetch('/app/' + app, { method: 'POST' }).catch(()=>{});
+    }
+
+    function typeText() {
+      haptic();
+      const txt = prompt('Digitar texto na BTV:');
+      if (txt) {
+        fetch('/text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: txt })
+        }).catch(()=>{});
+      }
+    }
+
+    // Physical keyboard support for desktop/tablet
+    window.addEventListener('keydown', (e) => {
+      switch (e.key) {
+        case 'ArrowUp': send('up'); break;
+        case 'ArrowDown': send('down'); break;
+        case 'ArrowLeft': send('left'); break;
+        case 'ArrowRight': send('right'); break;
+        case 'Enter': send('ok'); break;
+        case 'Escape': send('back'); break;
+        case 'h': case 'H': send('home'); break;
+        case 'm': case 'M': send('mute'); break;
+        case ' ': send('play'); e.preventDefault(); break;
+      }
+    });
+  </script>
+</body>
+</html>
